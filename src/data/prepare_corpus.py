@@ -6,7 +6,7 @@ dataset = "github"
 streaming_samples = 1000
 overwrite = False  # overwrite the dataset if exists
 logging = True
-tokenizers = "gpt2 bloom"
+tokenizers = "gpt2+bloom"
 exec(open("configurator.py").read())  # overrides from command line or config file
 # ---------------------------------------------------------------------------------
 
@@ -22,7 +22,11 @@ if __name__ == "__main__":
     with open(input_file_path, "r", encoding="utf-8") as f:
         data = f.read()
 
-    tokenized_data = tokenize(tokenizers.split(), data, data_dir)
+    tokenized_data = tokenize(
+        tokenizers=tokenizers.split("+"),
+        data=data,
+        data_dir=data_dir,
+    )
     for model_name in tokenized_data:
         ids = tokenized_data[model_name]
         n = len(ids)
