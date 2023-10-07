@@ -5,6 +5,7 @@ from src.data.prepare_corpus import tokenize
 
 dataset = "github_topics"
 overwrite = False
+tokenizers = "gpt2+bloom"
 exec(open("configurator.py").read())  # overrides from command line or config file
 # ---------------------------------------------------------------------------------
 data_dir = os.path.join(os.path.dirname(__file__), dataset)
@@ -23,7 +24,11 @@ for i in tqdm(range(n_topics), desc="Topic progress"):
     except Exception as e:
         raise e
 
-    tokenized_data = tokenize(data, data_dir)
+    tokenized_data = tokenize(
+        tokenizers=tokenizers.split("+"),
+        data=data,
+        data_dir=data_dir,
+    )
     for model_name in tokenized_data:
         ids = tokenized_data[model_name]
         ids = np.array(ids, dtype=np.uint16)
