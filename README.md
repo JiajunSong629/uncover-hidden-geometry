@@ -1,4 +1,4 @@
-## Uncover hidden geometry in Transformers
+# Uncover hidden geometry in Transformers
 
 ## Getting Started
 
