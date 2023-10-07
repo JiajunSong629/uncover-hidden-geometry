@@ -122,8 +122,10 @@ for i in tqdm(range(n_batch), desc="Get data for pos and global mean"):
     with torch.no_grad():
         hiddens = model.generate_hiddens(x)  # (L, B, T, C)
         if i == 0:
-            embeddings_mean_by_B = (hiddens/ (n_batch * batch_size)).sum(1) 
-            embeddings_mean_by_T = (hiddens[:, :, id_start:id_end, :] / (id_end - id_start)).sum(2)
+            embeddings_mean_by_B = (hiddens / (n_batch * batch_size)).sum(1)
+            embeddings_mean_by_T = (
+                hiddens[:, :, id_start:id_end, :] / (id_end - id_start)
+            ).sum(2)
         else:
             embeddings_mean_by_B += (hiddens / (n_batch * batch_size)).sum(1)
             embeddings_mean_by_T = np.array(
@@ -131,13 +133,13 @@ for i in tqdm(range(n_batch), desc="Get data for pos and global mean"):
                     np.vstack([new, old])
                     for old, new in zip(
                         embeddings_mean_by_T,
-                        (hiddens[:, :, id_start:id_end, :] / (id_end - id_start)).sum(2),
+                        (hiddens[:, :, id_start:id_end, :] / (id_end - id_start)).sum(
+                            2
+                        ),
                     )
                 ]
             )
 
-# embeddings_mean_by_B = embeddings_sum_by_B / (n_batch * batch_size)
-# embeddings_mean_by_T = embeddings_sum_by_T / (id_end - id_start)
 
 L, T, C = embeddings_mean_by_B.shape
 L, B, C = embeddings_mean_by_T.shape
@@ -187,11 +189,8 @@ for layer_idx in tqdm(range(L), desc="Calculate pos and global mean"):
 # data for c-vec
 # We use a smaller batch size of n_cvec_batch because c-vecs contains
 # values for all batch_size x L x T x C, which could be large.
-# Therefore we choose a smaller n_cvec_batch to limit the size.
+# Therefore we choose a smaller n_cvec_batch to reduce the size.
 
-# c_vec_x = np.zeros(
-#     n_cvec_batch * batch_size * (id_end - id_start)
-# )  # save tokens to analyze
 for i in tqdm(range(n_cvec_batch), desc="Get data for cvec and resid"):
     x, y = get_batch(split, batch_size)
     with torch.no_grad():
@@ -201,10 +200,6 @@ for i in tqdm(range(n_cvec_batch), desc="Get data for cvec and resid"):
             embeddings[
                 i * batch_size : i * batch_size + batch_size, layer_idx
             ] = hiddens[layer_idx]
-
-    # c_vec_x[
-    #     i * batch_size * Tp : i * batch_size * Tp + batch_size * Tp
-    # ] = np.concatenate(x.numpy(force=True)[:, id_start:id_end], axis=0)
 
 
 for layer_idx in tqdm(range(L), desc="Calculate cvec and resid"):
@@ -224,15 +219,6 @@ for layer_idx in tqdm(range(L), desc="Calculate cvec and resid"):
 
         c_vecs_all[layer_idx, sample_idx * Tp : sample_idx * Tp + Tp] = c_vec
         resids_all[layer_idx, sample_idx * Tp : sample_idx * Tp + Tp] = resid
-
-    #     c_vecs.append(c_vec)
-    #     resids.append(resid)
-
-    # c_vecs = np.concatenate(list(c_vecs), axis=0)
-    # resids = np.concatenate(list(resids), axis=0)
-
-    # c_vecs_all.append(c_vecs)
-    # resids_all.append(resids)
 
 
 # -------------------------------- Save --------------------------------------

@@ -1,9 +1,3 @@
-# """
-# This script generates positional context basis from a trained model.
-# The result is used mainly for the visualization of context clustering plot,
-# which is implemented in `analysis/figure_context_clustering.py`.
-# """
-
 import os
 import torch
 import numpy as np
@@ -116,9 +110,6 @@ for i, data in enumerate(datum):
             ] = hiddens[layer]
 
 
-# c_basis = np.zeros((L, n_samples, C))
-# c_vecs = np.zeros((L, n_samples, id_end - id_start, C))
-# resids = np.zeros((L, n_samples, id_end - id_start, C))
 for layer in tqdm(range(L), desc="Layer progress"):
     c_basis[layer] = (
         embeddings[layer, :, id_start:id_end, :].mean(1) - global_mean[layer]

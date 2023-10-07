@@ -70,7 +70,7 @@ def char_handler(data):
     return ids, meta
 
 
-def tokenize(data, data_dir):
+def tokenize(tokenizers, data, data_dir):
     readme = ""
     tokenized_data = {}
     for tokenizer, model_name in zip(
@@ -91,6 +91,10 @@ def tokenize(data, data_dir):
             "char",
         ],
     ):
+        if model_name not in tokenizers:
+            continue
+
+        print(f"Tokenize with {model_name} tokenizer...")
         # create the train and test splits
         if model_name == "char":
             ids, meta = char_handler(data)
