@@ -6,6 +6,7 @@ from src.model import GPT, Bert, Llama2, Bloom
 
 dataset = "openwebtext_topics"
 out_dir = "out/topics/openwebtext_topics/gpt2"
+load_dir = "out/decompositions/openwebtext-gpt2"
 init_from = "gpt2"
 id_start = 1
 id_end = 128
@@ -51,7 +52,6 @@ for file in os.listdir(data_dir):
 
 # ------------------------------------------------------------------
 data_rstrip = dataset[: -len(list("_topics"))]
-load_dir = f"out/decompositions/{data_rstrip}-{init_from}"
 embd_normalize = "none"
 suffix = f"id1-512_{embd_normalize}_train.npy"
 pos = np.load(os.path.join(load_dir, f"pos_{suffix}"))
