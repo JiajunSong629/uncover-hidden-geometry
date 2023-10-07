@@ -1,0 +1,4368 @@
+-- Section: Internal Functions
+
+-- Group: Low-level event handling
+
+\i functions/pgq.batch_event_sql.sql
+\i functions/pgq.batch_event_tables.sql
+\i functions/pgq.event_retry_raw.sql
+\i functions/pgq.find_tick_helper.sql
+
+-- \i functions/pgq.insert_event_raw.sql
+\i lowlevel/pgq_lowlevel.sql
+
+-- Group: Ticker
+
+\i functions/pgq.ticker.sql
+
+-- Group: Periodic maintenence
+
+\i functions/pgq.maint_retry_events.sql
+\i functions/pgq.maint_rotate_tables.sql
+\i functions/pgq.maint_tables_to_vacuum.sql
+\i functions/pgq.maint_operations.sql
+
+-- Group: Random utility functions
+
+\i functions/pgq.grant_perms.sql
+\i functions/pgq.force_tick.sql
+\i functions/pgq.seq_funcs.sql
+
+
+CREATE TABLE <table-name>_nf (
+    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `request_uri` VARCHAR(255) NOT NULL,
+    `referrer` VARCHAR(255) DEFAULT '',
+    `user_agent` VARCHAR(255) DEFAULT '',
+    `created_at` TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE = MyISAM DEFAULT CHARSET=utf8;
+delete p1 from person as p1, person as p2 where p1.email = p2.email and p1.id > p2.id;
+CREATE TABLE IF NOT EXISTS `comment` (
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+;
+SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
+SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
+SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='TRADITIONAL';
+
+-- ----------------------------------------------------------------------------------------------------------
+--                                                   TABLES
+-- ----------------------------------------------------------------------------------------------------------
+
+-- -----------------------------------------------------
+-- Table `gene`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `gene`
+(
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`hgnc_id` int(10) unsigned NOT NULL,
+`symbol` varchar(40) NOT NULL,
+`name` TEXT NOT NULL,
+`type` enum('protein-coding gene','pseudogene','non-coding RNA','other') NOT NULL,
+
+PRIMARY KEY (`id`), 
+UNIQUE KEY `hgnc_id` (`hgnc_id`),
+UNIQUE KEY `symbol` (`symbol`),
+KEY `type` (`type`)
+)
+ENGINE=InnoDB DEFAULT
+CHARSET=utf8
+COMMENT='Genes from HGNC';
+
+-- -----------------------------------------------------
+-- Table `gene_alias`
+-- -----------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `gene_alias`
+(
+`gene_id` int(10) unsigned NOT NULL,
+`symbol` varchar(40) NOT NULL,
+`type` enum('synonym','previous') NOT NULL,
+
+KEY `fk_gene_id1` (`gene_id` ASC) ,
+CONSTRAINT `fk_gene_id1`
+  FOREIGN KEY (`gene_id` )
+  REFERENCES `gene` (`id` )
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+KEY `symbol` (`symbol`),
+KEY `type` (`type`)
+) 
+ENGINE=InnoDB DEFAULT 
+CHARSET=utf8
+COMMENT='Alternative symbols of genes';
+
+
+-- -----------------------------------------------------
+-- Table `gene_transcript`
+-- -----------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `gene_transcript`
+(
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`gene_id` int(10) unsigned NOT NULL,
+`name` varchar(40) NOT NULL,
+`source` enum('ccds', 'ensembl') NOT NULL,
+`chromosome` enum('1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','X','Y','MT') NOT NULL,
+`start_coding` int(10) unsigned NULL,
+`end_coding` int(10) unsigned NULL,
+`strand` enum('+', '-') NOT NULL,
+
+PRIMARY KEY (`id`),
+CONSTRAINT `fk_gene_id3`
+  FOREIGN KEY (`gene_id` )
+  REFERENCES `gene` (`id` )
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+UNIQUE KEY `gene_name_unique` (`gene_id`, `name`),
+UNIQUE KEY `name` (`name`) ,
+KEY `source` (`source`),
+KEY `chromosome` (`chromosome`),
+KEY `start_coding` (`start_coding`), 
+KEY `end_coding` (`end_coding`)
+) 
+ENGINE=InnoDB DEFAULT 
+CHARSET=utf8
+COMMENT='Gene transcipts';
+
+-- -----------------------------------------------------
+-- Table `gene_exon`
+-- -----------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `gene_exon`
+(
+`transcript_id` int(10) unsigned NOT NULL,
+`start` int(10) unsigned NOT NULL,
+`end` int(10) unsigned NOT NULL,
+
+KEY `fk_transcript_id2` (`transcript_id` ASC) ,
+CONSTRAINT `fk_transcript_id2`
+  FOREIGN KEY (`transcript_id` )
+  REFERENCES `gene_transcript` (`id` )
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+KEY `start` (`start`), 
+KEY `end` (`end`)
+) 
+ENGINE=InnoDB DEFAULT 
+CHARSET=utf8
+COMMENT='Transcript exons';
+
+-- -----------------------------------------------------
+-- Table `geneinfo_germline`
+-- -----------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `geneinfo_germline`
+(
+`symbol` VARCHAR(40) NOT NULL,
+`inheritance` ENUM('AR','AD','AR+AD','XLR','XLD','XLR+XLD','MT','MU','n/a') NOT NULL,
+`gnomad_oe_syn` FLOAT NULL,
+`gnomad_oe_mis` FLOAT NULL,
+`gnomad_oe_lof` FLOAT NULL,
+`comments` text NOT NULL,
+PRIMARY KEY `symbol` (`symbol`)
+)
+ENGINE=InnoDB
+CHARSET=utf8;
+
+-- -----------------------------------------------------
+-- Table `mid`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `mid`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(255) NOT NULL,
+  `sequence` VARCHAR(45) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `genome`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `genome`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `build` VARCHAR(45) NOT NULL,
+  `comment` TEXT NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `build_UNIQUE` (`build` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `processing_system`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `processing_system`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name_short` VARCHAR(50) NOT NULL,
+  `name_manufacturer` VARCHAR(100) NOT NULL,
+  `adapter1_p5` VARCHAR(45) NULL DEFAULT NULL,
+  `adapter2_p7` VARCHAR(45) NULL DEFAULT NULL,
+  `type` ENUM('WGS','WGS (shallow)','WES','Panel','Panel Haloplex','Panel MIPs','RNA','ChIP-Seq', 'cfDNA (patient-specific)', 'cfDNA') NOT NULL,
+  `shotgun` TINYINT(1) NOT NULL,
+  `umi_type` ENUM('n/a','HaloPlex HS','SureSelect HS','ThruPLEX','Safe-SeqS','MIPs','QIAseq','IDT-UDI-UMI','IDT-xGen-Prism') NOT NULL DEFAULT 'n/a',
+  `target_file` VARCHAR(255) NULL DEFAULT NULL COMMENT 'filename of sub-panel BED file relative to the megSAP enrichment folder.',
+  `genome_id` INT(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_short` (`name_short` ASC),
+  UNIQUE INDEX `name_manufacturer` (`name_manufacturer` ASC),
+  INDEX `fk_processing_system_genome1` (`genome_id` ASC),
+  CONSTRAINT `fk_processing_system_genome1`
+    FOREIGN KEY (`genome_id`)
+    REFERENCES `genome` (`id`)
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `device`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `device`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `type` ENUM('GAIIx','MiSeq','HiSeq2500','NextSeq500','NovaSeq5000','NovaSeq6000','MGI-2000','SequelII','PromethION') NOT NULL,
+  `name` VARCHAR(45) NOT NULL,
+  `comment` TEXT NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `sequencing_run`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sequencing_run`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(45) NOT NULL,
+  `fcid` VARCHAR(45) NULL DEFAULT NULL,
+  `flowcell_type` ENUM('Illumina MiSeq v2','Illumina MiSeq v2 Micro','Illumina MiSeq v2 Nano','Illumina MiSeq v3','Illumina NextSeq High Output','Illumina NextSeq Mid Output','Illumina NovaSeq SP','Illumina NovaSeq S1','Illumina NovaSeq S2','Illumina NovaSeq S4','PromethION FLO-PRO002','SMRTCell 8M','n/a') NOT NULL DEFAULT 'n/a',
+  `start_date` DATE NULL DEFAULT NULL,
+  `end_date` DATE NULL DEFAULT NULL,
+  `device_id` INT(11) NOT NULL,
+  `recipe` VARCHAR(45) NOT NULL COMMENT 'Read length for reads and index reads separated by \'+\'',
+  `pool_molarity` float DEFAULT NULL,
+  `pool_quantification_method` enum('n/a','Tapestation','Bioanalyzer','qPCR','Tapestation & Qubit','Bioanalyzer & Qubit','Bioanalyzer & Tecan Infinite','Fragment Analyzer & Qubit','Fragment Analyzer & Tecan Infinite','Illumina 450bp & Qubit ssDNA','PCR Size & ssDNA') NOT NULL DEFAULT 'n/a',
+  `comment` TEXT NULL DEFAULT NULL,
+  `quality` ENUM('n/a','good','medium','bad') NOT NULL DEFAULT 'n/a',
+  `status` ENUM('n/a','run_started','run_finished','run_aborted','demultiplexing_started','analysis_started','analysis_finished','analysis_not_possible','analysis_and_backup_not_required') NOT NULL DEFAULT 'n/a',
+  `backup_done` TINYINT(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC),
+  UNIQUE INDEX `fcid_UNIQUE` (`fcid` ASC),
+  INDEX `fk_run_device1` (`device_id` ASC),
+  CONSTRAINT `fk_run_device1`
+    FOREIGN KEY (`device_id`)
+    REFERENCES `device` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `runqc_read`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `runqc_read`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `read_num` INT NOT NULL,
+  `cycles` INT NOT NULL,
+  `is_index` BOOLEAN NOT NULL,
+  `q30_perc` FLOAT NOT NULL,
+  `error_rate` FLOAT DEFAULT NULL,
+  `sequencing_run_id` INT(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE (`sequencing_run_id`, `read_num`),
+  INDEX `fk_sequencing_run_id` (`sequencing_run_id` ASC),
+  CONSTRAINT `fk_sequencing_run_id`
+    FOREIGN KEY (`sequencing_run_id`)
+    REFERENCES `sequencing_run` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `runqc_lane`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `runqc_lane`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `lane_num` INT NOT NULL,
+  `cluster_density` FLOAT NOT NULL,
+  `cluster_density_pf` FLOAT NOT NULL,
+  `yield` FLOAT NOT NULL,
+  `error_rate` FLOAT DEFAULT NULL,
+  `q30_perc` FLOAT NOT NULL,
+  `occupied_perc` FLOAT DEFAULT NULL,
+  `runqc_read_id` INT(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE (`runqc_read_id`, `lane_num`),
+  INDEX `fk_runqc_read_id` (`runqc_read_id` ASC),
+  CONSTRAINT `fk_runqc_read_id`
+    FOREIGN KEY (`runqc_read_id`)
+    REFERENCES `runqc_read` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `species`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `species`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(45) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `sender`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sender`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(45) NOT NULL,
+  `phone` VARCHAR(45) NULL DEFAULT NULL,
+  `email` VARCHAR(45) NULL DEFAULT NULL,
+  `affiliation` VARCHAR(100) NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `user`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `user`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `user_id` VARCHAR(45) NOT NULL COMMENT 'Use the lower-case Windows domain name!',
+  `password` VARCHAR(64) NOT NULL,
+  `user_role` ENUM('user','admin','special') NOT NULL,
+  `name` VARCHAR(45) NOT NULL,
+  `email` VARCHAR(100) NOT NULL,
+  `created` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_login` DATETIME NULL DEFAULT NULL,
+  `active` TINYINT(1) DEFAULT 1 NOT NULL,
+  `salt` VARCHAR(40) NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`user_id` ASC),
+  UNIQUE INDEX `email_UNIQUE` (`email` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `sample`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sample`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(20) NOT NULL,
+  `name_external` VARCHAR(255) NULL DEFAULT NULL COMMENT 'External names.<br>If several, separate by comma!<br>Always enter full names, no short forms!',
+  `received` DATE NULL DEFAULT NULL,
+  `receiver_id` INT(11) NULL DEFAULT NULL,
+  `sample_type` ENUM('DNA','DNA (amplicon)','DNA (native)','RNA','cfDNA') NOT NULL,
+  `species_id` INT(11) NOT NULL,
+  `concentration` FLOAT NULL DEFAULT NULL,
+  `volume` FLOAT NULL DEFAULT NULL,
+  `od_260_280` FLOAT NULL DEFAULT NULL,
+  `gender` ENUM('male','female','n/a') NOT NULL,
+  `comment` TEXT NULL DEFAULT NULL,
+  `quality` ENUM('n/a','good','medium','bad') NOT NULL DEFAULT 'n/a',
+  `od_260_230` FLOAT NULL DEFAULT NULL,
+  `integrity_number` FLOAT NULL DEFAULT NULL,
+  `tumor` TINYINT(1) NOT NULL,
+  `ffpe` TINYINT(1) NOT NULL,
+  `sender_id` INT(11) NOT NULL,
+  `disease_group` ENUM('n/a','Neoplasms','Diseases of the blood or blood-forming organs','Diseases of the immune system','Endocrine, nutritional or metabolic diseases','Mental, behavioural or neurodevelopmental disorders','Sleep-wake disorders','Diseases of the nervous system','Diseases of the visual system','Diseases of the ear or mastoid process','Diseases of the circulatory system','Diseases of the respiratory system','Diseases of the digestive system','Diseases of the skin','Diseases of the musculoskeletal system or connective tissue','Diseases of the genitourinary system','Developmental anomalies','Other diseases') NOT NULL DEFAULT 'n/a',
+  `disease_status` ENUM('n/a','Affected','Unaffected','Unclear') NOT NULL DEFAULT 'n/a',
+  `tissue` ENUM('n/a','Blood','Buccal mucosa','Skin') NOT NULL DEFAULT 'n/a',
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC),
+  INDEX `fk_samples_species1` (`species_id` ASC),
+  INDEX `sender_id` (`sender_id` ASC),
+  INDEX `receiver_id` (`receiver_id` ASC),
+  INDEX `name_external` (`name_external` ASC),
+  INDEX `tumor` (`tumor` ASC),
+  INDEX `quality` (`quality` ASC),
+  INDEX `disease_group` (`disease_group`),
+  INDEX `disease_status` (`disease_status`),
+  CONSTRAINT `fk_samples_species1`
+    FOREIGN KEY (`species_id`)
+    REFERENCES `species` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `sample_ibfk_1`
+    FOREIGN KEY (`sender_id`)
+    REFERENCES `sender` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `sample_ibfk_2`
+    FOREIGN KEY (`receiver_id`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `sample_disease_info`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sample_disease_info`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `sample_id` INT(11) NOT NULL,
+  `disease_info` TEXT NOT NULL,
+  `type` ENUM('HPO term id', 'ICD10 code', 'OMIM disease/phenotype identifier', 'Orpha number', 'CGI cancer type', 'tumor fraction', 'age of onset', 'clinical phenotype (free text)', 'RNA reference tissue') NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_sample_id`
+    FOREIGN KEY (`sample_id`)
+    REFERENCES `sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_user`
+    FOREIGN KEY (`user_id`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `sample_relations`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sample_relations`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `sample1_id` INT(11) NOT NULL,
+  `relation` ENUM('parent-child', 'tumor-normal', 'siblings', 'same sample', 'tumor-cfDNA', 'same patient', 'cousins', 'twins', 'twins (monozygotic)') NOT NULL,
+  `sample2_id` INT(11) NOT NULL,
+  `user_id` int(11) DEFAULT NULL,
+  `date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `relation_unique` (`sample1_id` ASC, `relation` ASC, `sample2_id` ASC),
+  CONSTRAINT `fk_sample1_id`
+    FOREIGN KEY (`sample1_id`)
+    REFERENCES `sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_sample2_id`
+    FOREIGN KEY (`sample2_id`)
+    REFERENCES `sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_user2`
+    FOREIGN KEY (`user_id`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `project`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `project`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(45) NOT NULL,
+  `aliases` TEXT DEFAULT NULL,
+  `type` ENUM('diagnostic','research','test','external') NOT NULL,
+  `internal_coordinator_id` INT(11) NOT NULL COMMENT 'Person who is responsible for this project.<br>The person will be notified when new samples are available.',
+  `comment` TEXT NULL DEFAULT NULL,
+  `analysis` ENUM('fastq','mapping','variants') NOT NULL DEFAULT 'variants' COMMENT 'Bioinformatics analysis to be done for non-tumor germline samples in this project.<br>"fastq" skips the complete analysis.<br>"mapping" creates the BAM file but calls no variants.<br>"variants" performs the full analysis.',
+  `preserve_fastqs` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Prevents FASTQ files from being deleted after mapping in this project.<br>Has no effect if megSAP is not configured to delete FASTQs automatically.<br>For diagnostics, do not check. For other project types ask the bioinformatician in charge.',
+  `email_notification` varchar(200) DEFAULT NULL COMMENT 'List of email addresses (separated by semicolon) that are notified in addition to the project coordinator when new samples are available.',
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC),
+  INDEX `internal_coordinator_id` (`internal_coordinator_id` ASC),
+  CONSTRAINT `project_ibfk_1`
+    FOREIGN KEY (`internal_coordinator_id`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `processed_sample`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `processed_sample`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `sample_id` INT(11) NOT NULL,
+  `process_id` INT(2) NOT NULL,
+  `sequencing_run_id` INT(11) NULL DEFAULT NULL,
+  `lane` varchar(15) NOT NULL COMMENT 'Comma-separated lane list (1-8)',
+  `mid1_i7` INT(11) NULL DEFAULT NULL,
+  `mid2_i5` INT(11) NULL DEFAULT NULL,
+  `operator_id` INT(11) NULL DEFAULT NULL,
+  `processing_system_id` INT(11) NOT NULL,
+  `comment` TEXT NULL DEFAULT NULL,
+  `project_id` INT(11) NOT NULL,
+  `processing_input` FLOAT NULL DEFAULT NULL,
+  `molarity` FLOAT NULL DEFAULT NULL,
+  `normal_id` INT(11) NULL DEFAULT NULL COMMENT 'For tumor samples, a normal sample can be given here which is used as reference sample during the data analysis.',
+  `quality` ENUM('n/a','good','medium','bad') NOT NULL DEFAULT 'n/a',
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `sample_psid_unique` (`sample_id` ASC, `process_id` ASC),
+  INDEX `fk_processed_sample_samples1` (`sample_id` ASC),
+  INDEX `fk_processed_sample_mid1` (`mid1_i7` ASC),
+  INDEX `fk_processed_sample_processing_system1` (`processing_system_id` ASC),
+  INDEX `fk_processed_sample_run1` (`sequencing_run_id` ASC),
+  INDEX `fk_processed_sample_mid2` (`mid2_i5` ASC),
+  INDEX `project_id` (`project_id` ASC),
+  INDEX `operator_id` (`operator_id` ASC),
+  INDEX `normal_id_INDEX` (`normal_id` ASC),
+  INDEX `quality` (`quality` ASC),
+  CONSTRAINT `fk_processed_sample_mid1`
+    FOREIGN KEY (`mid1_i7`)
+    REFERENCES `mid` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_processed_sample_mid2`
+    FOREIGN KEY (`mid2_i5`)
+    REFERENCES `mid` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_processed_sample_processing_system1`
+    FOREIGN KEY (`processing_system_id`)
+    REFERENCES `processing_system` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_processed_sample_run1`
+    FOREIGN KEY (`sequencing_run_id`)
+    REFERENCES `sequencing_run` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_processed_sample_sample2`
+    FOREIGN KEY (`normal_id`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_processed_sample_samples1`
+    FOREIGN KEY (`sample_id`)
+    REFERENCES `sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `processed_sample_ibfk_1`
+    FOREIGN KEY (`project_id`)
+    REFERENCES `project` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `processed_sample_ibfk_2`
+    FOREIGN KEY (`operator_id`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `variant`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `variant`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `chr` ENUM('chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr20','chr21','chr22','chrY','chrX','chrMT') NOT NULL,
+  `start` INT(11) NOT NULL,
+  `end` INT(11) NOT NULL,
+  `ref` TEXT NOT NULL,
+  `obs` TEXT NOT NULL,
+  `1000g` FLOAT NULL DEFAULT NULL,
+  `gnomad` FLOAT NULL DEFAULT NULL,
+  `coding` TEXT NULL DEFAULT NULL,  
+  `comment` TEXT NULL DEFAULT NULL,
+  `cadd` FLOAT NULL DEFAULT NULL,
+  `spliceai` FLOAT NULL DEFAULT NULL,
+  `germline_het` INT(11) NOT NULL DEFAULT '0',
+  `germline_hom` INT(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `variant_UNIQUE` (`chr` ASC, `start` ASC, `end` ASC, `ref`(255) ASC, `obs`(255) ASC),
+  INDEX `1000g` (`1000g` ASC),
+  INDEX `gnomad` (`gnomad` ASC),
+  INDEX `comment` (`comment`(50) ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `variant_publication`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `variant_publication`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `sample_id` INT(11) NOT NULL,
+  `variant_id` INT(11) NOT NULL,
+  `db` ENUM('LOVD','ClinVar') NOT NULL,
+  `class` ENUM('1','2','3','4','5', 'M') NOT NULL,
+  `details` TEXT NOT NULL,
+  `user_id` INT(11) NOT NULL,
+  `date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `result` TEXT DEFAULT NULL,
+  `replaced` BOOLEAN NOT NULL DEFAULT FALSE,
+PRIMARY KEY (`id`),
+CONSTRAINT `fk_variant_publication_has_user`
+  FOREIGN KEY (`user_id`)
+  REFERENCES `user` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `fk_variant_publication_has_sample`
+    FOREIGN KEY (`sample_id`)
+    REFERENCES `sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+CONSTRAINT `fk_variant_publication_has_variant`
+  FOREIGN KEY (`variant_id`)
+  REFERENCES `variant` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `variant_classification`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `variant_classification`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `variant_id` INT(11) NOT NULL,
+  `class` ENUM('n/a','1','2','3','4','5','M') NOT NULL,
+  `comment` TEXT NULL DEFAULT NULL,
+PRIMARY KEY (`id`),
+UNIQUE KEY `fk_variant_classification_has_variant` (`variant_id`),
+CONSTRAINT `fk_variant_classification_has_variant`
+  FOREIGN KEY (`variant_id`)
+  REFERENCES `variant` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+INDEX `class` (`class` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `somatic_variant_classification`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `somatic_variant_classification`
+(
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `variant_id` int(11) NOT NULL,
+  `class` ENUM('n/a','activating','likely_activating','inactivating','likely_inactivating','unclear','test_dependent') NOT NULL,
+  `comment` TEXT,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `somatic_variant_classification_has_variant` (`variant_id`),
+  CONSTRAINT `somatic_variant_classification_has_variant` 
+    FOREIGN KEY (`variant_id`)
+    REFERENCES `variant` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB 
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `somatic_vicc_interpretation`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `somatic_vicc_interpretation`
+(
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `variant_id` int(11) NOT NULL,
+  `null_mutation_in_tsg` BOOLEAN NULL DEFAULT NULL,
+  `known_oncogenic_aa` BOOLEAN NULL DEFAULT NULL,
+  `oncogenic_funtional_studies` BOOLEAN NULL DEFAULT NULL,
+  `strong_cancerhotspot` BOOLEAN NULL DEFAULT NULL,
+  `located_in_canerhotspot` BOOLEAN NULL DEFAULT NULL,
+  `absent_from_controls` BOOLEAN NULL DEFAULT NULL,
+  `protein_length_change` BOOLEAN NULL DEFAULT NULL,
+  `other_aa_known_oncogenic` BOOLEAN NULL DEFAULT NULL,
+  `weak_cancerhotspot` BOOLEAN NULL DEFAULT NULL,
+  `computational_evidence` BOOLEAN NULL DEFAULT NULL,
+  `mutation_in_gene_with_etiology` BOOLEAN NULL DEFAULT NULL,
+  `very_weak_cancerhotspot` BOOLEAN NULL DEFAULT NULL,
+  `very_high_maf` BOOLEAN NULL DEFAULT NULL,
+  `benign_functional_studies` BOOLEAN NULL DEFAULT NULL,
+  `high_maf` BOOLEAN NULL DEFAULT NULL,
+  `benign_computational_evidence` BOOLEAN NULL DEFAULT NULL,
+  `synonymous_mutation` BOOLEAN NULL DEFAULT NULL,
+  `comment` TEXT NULL DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_date` DATETIME NOT NULL,
+  `last_edit_by` int(11) DEFAULT NULL,
+  `last_edit_date` TIMESTAMP NULL DEFAULT NULL,
+PRIMARY KEY (`id`),
+UNIQUE KEY `somatic_vicc_interpretation_has_variant` (`variant_id`),
+CONSTRAINT `somatic_vicc_interpretation_has_variant`
+  FOREIGN KEY (`variant_id`)
+  REFERENCES `variant` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `somatic_vicc_interpretation_created_by_user` 
+  FOREIGN KEY (`created_by`)
+  REFERENCES `user` (`id`) 
+  ON DELETE NO ACTION 
+  ON UPDATE NO ACTION,
+CONSTRAINT `somatic_vicc_interpretation_last_edit_by_user`
+  FOREIGN KEY (`last_edit_by`)
+  REFERENCES `user` (`id`)
+  ON DELETE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `somatic_gene_role`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `somatic_gene_role`
+(
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `symbol` VARCHAR(40) NOT NULL,
+  `gene_role` ENUM('activating','loss_of_function', 'ambiguous') NOT NULL,
+  `high_evidence` BOOLEAN DEFAULT FALSE,
+  `comment` TEXT NULL DEFAULT NULL,
+PRIMARY KEY (`id`),
+UNIQUE KEY (`symbol`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `detected_variant`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `detected_variant`
+(
+  `processed_sample_id` INT(11) NOT NULL,
+  `variant_id` INT(11) NOT NULL,
+  `genotype` ENUM('hom','het') NOT NULL,
+  PRIMARY KEY (`processed_sample_id`, `variant_id`),
+  INDEX `fk_detected_variant_variant1` (`variant_id` ASC),
+  CONSTRAINT `fk_processed_sample_has_variant_processed_sample1`
+    FOREIGN KEY (`processed_sample_id`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_processed_sample_has_variant_variant1`
+    FOREIGN KEY (`variant_id`)
+    REFERENCES `variant` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `qc_terms`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `qc_terms`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `qcml_id` VARCHAR(10) NULL DEFAULT NULL,
+  `name` VARCHAR(45) NOT NULL,
+  `description` TEXT NOT NULL,
+  `type` ENUM('float', 'int', 'string') NOT NULL,
+  `obsolete` TINYINT(1) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC),
+  UNIQUE INDEX `qcml_id_UNIQUE` (`qcml_id` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `processed_sample_qc`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `processed_sample_qc`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `processed_sample_id` INT(11) NOT NULL,
+  `qc_terms_id` INT(11) NOT NULL,
+  `value` TEXT NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `c_processing_id_qc_terms_id` (`processed_sample_id` ASC, `qc_terms_id` ASC),
+  INDEX `fk_qcvalues_processing1` (`processed_sample_id` ASC),
+  INDEX `fk_processed_sample_annotaiton_qcml1` (`qc_terms_id` ASC),
+  CONSTRAINT `fk_processed_sample_annotaiton_qcml1`
+    FOREIGN KEY (`qc_terms_id`)
+    REFERENCES `qc_terms` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_qcvalues_processing1`
+    FOREIGN KEY (`processed_sample_id`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `sample_group`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sample_group`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(45) NOT NULL,
+  `comment` TEXT NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `name_UNIQUE` (`name` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `nm_sample_sample_group`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `nm_sample_sample_group`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `sample_group_id` INT(11) NOT NULL,
+  `sample_id` INT(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_sample_group_has_sample_sample1` (`sample_id` ASC),
+  INDEX `fk_sample_group_has_sample_sample_group1` (`sample_group_id` ASC),
+  CONSTRAINT `fk_sample_group_has_sample_sample1`
+    FOREIGN KEY (`sample_id`)
+    REFERENCES `sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_sample_group_has_sample_sample_group1`
+    FOREIGN KEY (`sample_group_id`)
+    REFERENCES `sample_group` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `detected_somatic_variant`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `detected_somatic_variant`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `processed_sample_id_tumor` INT(11) NOT NULL,
+  `processed_sample_id_normal` INT(11) NULL DEFAULT NULL,
+  `variant_id` INT(11) NOT NULL,
+  `variant_frequency` FLOAT NOT NULL,
+  `depth` INT(11) NOT NULL,
+  `quality_snp` FLOAT NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `detected_somatic_variant_UNIQUE` (`processed_sample_id_tumor` ASC, `processed_sample_id_normal` ASC, `variant_id` ASC),
+  INDEX `variant_id_INDEX` (`variant_id` ASC),
+  INDEX `processed_sample_id_tumor_INDEX` (`processed_sample_id_tumor` ASC),
+  INDEX `processed_sample_id_normal_INDEX` (`processed_sample_id_normal` ASC),
+  INDEX `fk_dsv_has_ps1` (`processed_sample_id_tumor` ASC),
+  INDEX `fk_dsv_has_ps2` (`processed_sample_id_normal` ASC),
+  CONSTRAINT `fk_dsv_has_ps1`
+    FOREIGN KEY (`processed_sample_id_tumor`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_dsv_has_ps2`
+    FOREIGN KEY (`processed_sample_id_normal`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_dsv_has_v`
+    FOREIGN KEY (`variant_id`)
+    REFERENCES `variant` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `diag_status`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `diag_status`
+(
+  `processed_sample_id` INT(11) NOT NULL,
+  `status` ENUM('pending','in progress','done','done - follow up pending','cancelled','not usable because of data quality') NOT NULL,
+  `user_id` INT(11) NOT NULL,
+  `date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `outcome` ENUM('n/a','no significant findings','uncertain','significant findings','significant findings - second method', 'significant findings - non-genetic', 'candidate gene') NOT NULL DEFAULT 'n/a',
+  `comment` TEXT NULL DEFAULT NULL,
+  PRIMARY KEY (`processed_sample_id`),
+  INDEX `user_id` (`user_id` ASC),
+  CONSTRAINT `diag_status_ibfk_1`
+    FOREIGN KEY (`processed_sample_id`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `diag_status_ibfk_2`
+    FOREIGN KEY (`user_id`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `kasp_status`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `kasp_status`
+(
+  `processed_sample_id` INT(11) NOT NULL,
+  `random_error_prob` FLOAT UNSIGNED NOT NULL,
+  `snps_evaluated` INT(10) UNSIGNED NOT NULL,
+  `snps_match` INT(10) UNSIGNED NOT NULL,
+  PRIMARY KEY (`processed_sample_id`),
+  CONSTRAINT `processed_sample0`
+    FOREIGN KEY (`processed_sample_id`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `hpo_term`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `hpo_term`
+(
+  `id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `hpo_id` VARCHAR(10) NOT NULL,
+  `name` TEXT NOT NULL,
+  `definition` TEXT NOT NULL,
+  `synonyms` TEXT NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `hpo_id` (`hpo_id` ASC),
+  INDEX `name` (`name`(100) ASC),
+  INDEX `synonyms` (`synonyms`(100) ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `hpo_genes`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `hpo_genes`
+(
+  `hpo_term_id` INT(10) UNSIGNED NOT NULL,
+  `gene` VARCHAR(40) CHARACTER SET 'utf8' NOT NULL,
+  `details` TEXT COMMENT 'Semicolon seperated pairs of database sources with evidences of where the connection was found (Source, Original Evidence, Evidence translated; Source2, ....)',
+  `evidence` ENUM('n/a','low','medium','high') NOT NULL DEFAULT 'n/a',
+  PRIMARY KEY (`hpo_term_id`, `gene`),
+  CONSTRAINT `hpo_genes_ibfk_1`
+    FOREIGN KEY (`hpo_term_id`)
+    REFERENCES `hpo_term` (`id`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `hpo_parent`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `hpo_parent`
+(
+  `parent` INT(10) UNSIGNED NOT NULL,
+  `child` INT(10) UNSIGNED NOT NULL,
+  PRIMARY KEY (`parent`, `child`),
+  INDEX `child` (`child` ASC),
+  CONSTRAINT `hpo_parent_ibfk_2`
+    FOREIGN KEY (`child`)
+    REFERENCES `hpo_term` (`id`),
+  CONSTRAINT `hpo_parent_ibfk_1`
+    FOREIGN KEY (`parent`)
+    REFERENCES `hpo_term` (`id`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `analysis_job`
+-- -----------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `analysis_job`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `type` enum('single sample','multi sample','trio','somatic') NOT NULL,
+  `high_priority` TINYINT(1) NOT NULL,
+  `args` text NOT NULL,
+  `sge_id` varchar(10) DEFAULT NULL,
+  `sge_queue` varchar(50) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+)
+ENGINE=InnoDB
+DEFAULT CHARSET=utf8;
+
+
+-- -----------------------------------------------------
+-- Table `analysis_job_sample`
+-- -----------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `analysis_job_sample`
+(
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `analysis_job_id` int(11) NOT NULL,
+  `processed_sample_id` int(11) NOT NULL,
+  `info` text NOT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_analysis_job_id`
+    FOREIGN KEY (`analysis_job_id` )
+    REFERENCES `analysis_job` (`id` )
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_processed_sample_id`
+    FOREIGN KEY (`processed_sample_id` )
+    REFERENCES `processed_sample` (`id` )
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE=InnoDB
+DEFAULT CHARSET=utf8;
+
+
+-- -----------------------------------------------------
+-- Table `analysis_job_history`
+-- -----------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `analysis_job_history`
+(
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `analysis_job_id` int(11) NOT NULL,
+  `time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `user_id` int(11) DEFAULT NULL,
+  `status` enum('queued','started','finished','cancel','canceled','error') NOT NULL,
+  `output` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_analysis_job_id2`
+    FOREIGN KEY (`analysis_job_id` )
+    REFERENCES `analysis_job` (`id` )
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_user_id2`
+    FOREIGN KEY (`user_id` )
+    REFERENCES `user` (`id` )
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE=InnoDB
+DEFAULT CHARSET=utf8;
+
+
+-- -----------------------------------------------------
+-- Table `omim_gene`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `omim_gene`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `gene` VARCHAR(40) CHARACTER SET 'utf8' NOT NULL,
+  `mim` VARCHAR(10) CHARACTER SET 'utf8' NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `mim_unique` (`mim`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `omim_phenotype`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `omim_phenotype`
+(
+  `omim_gene_id` INT(11) UNSIGNED NOT NULL,
+  `phenotype` VARCHAR(255) CHARACTER SET 'utf8' NOT NULL,
+  PRIMARY KEY (`omim_gene_id`, `phenotype`),
+  CONSTRAINT `omim_gene_id_FK`
+    FOREIGN KEY (`omim_gene_id` )
+    REFERENCES `omim_gene` (`id` )
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `omim_preferred_phenotype`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `omim_preferred_phenotype`
+(
+  `gene` VARCHAR(40) CHARACTER SET 'utf8' NOT NULL,
+  `disease_group` ENUM('Neoplasms','Diseases of the blood or blood-forming organs','Diseases of the immune system','Endocrine, nutritional or metabolic diseases','Mental, behavioural or neurodevelopmental disorders','Sleep-wake disorders','Diseases of the nervous system','Diseases of the visual system','Diseases of the ear or mastoid process','Diseases of the circulatory system','Diseases of the respiratory system','Diseases of the digestive system','Diseases of the skin','Diseases of the musculoskeletal system or connective tissue','Diseases of the genitourinary system','Developmental anomalies','Other diseases') NOT NULL,
+  `phenotype_accession` VARCHAR(6) CHARACTER SET 'utf8' NOT NULL,
+  PRIMARY KEY (`gene`,`disease_group`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `merged_processed_samples`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `merged_processed_samples`
+(
+  `processed_sample_id` INT(11) NOT NULL,
+  `merged_into` INT(11) NOT NULL,
+  PRIMARY KEY (`processed_sample_id`),
+  CONSTRAINT `merged_processed_samples_ps_id`
+    FOREIGN KEY (`processed_sample_id`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `merged_processed_samples_merged_into`
+    FOREIGN KEY (`merged_into`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `somatic_report_configuration`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `somatic_report_configuration` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `ps_tumor_id` int(11) NOT NULL,
+  `ps_normal_id` int(11) NOT NULL,
+  `created_by` int(11) NOT NULL,
+  `created_date` DATETIME NOT NULL,
+  `last_edit_by` int(11) DEFAULT NULL,
+  `last_edit_date` timestamp NULL DEFAULT NULL,
+  `mtb_xml_upload_date` timestamp NULL DEFAULT NULL,
+  `target_file` VARCHAR(255) NULL DEFAULT NULL COMMENT 'filename of sub-panel BED file without path',
+  `tum_content_max_af` BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'include tumor content calculated by median value maximum allele frequency',
+  `tum_content_max_clonality` BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'include tumor content calculated by maximum CNV clonality',
+  `tum_content_hist` BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'include histological tumor content estimate ',
+  `msi_status` BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'include microsatellite instability status',
+  `cnv_burden` BOOLEAN NOT NULL DEFAULT FALSE,
+  `hrd_score` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'homologous recombination deficiency score, determined manually by user',
+  `hrd_statement` ENUM('no proof', 'proof', 'undeterminable') NULL DEFAULT NULL COMMENT 'comment to be shown in somatic report about HRD score',
+  `cnv_loh_count` INT(11) NULL DEFAULT NULL COMMENT 'number of somatic LOH events, determined from CNV file',
+  `cnv_tai_count` INT(11) NULL DEFAULT NULL COMMENT 'number of somatic telomer allelic imbalance events, determined from CNV file',
+  `cnv_lst_count` INT(11) NULL DEFAULT NULL COMMENT 'number of somatic long state transitions events, determined from CNV file',
+  `tmb_ref_text` VARCHAR(200) NULL DEFAULT NULL COMMENT 'reference data as free text for tumor mutation burden',
+  `quality` ENUM('no abnormalities','tumor cell content too low', 'quality of tumor DNA too low', 'DNA quantity too low', 'heterogeneous sample') NULL DEFAULT NULL COMMENT 'user comment on the quality of the DNA',
+  `fusions_detected` BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'fusions or other SVs were detected. Cannot be determined automatically, because manta files contain too many false positives',
+  `cin_chr` TEXT NULL DEFAULT NULL COMMENT 'comma separated list of instable chromosomes',
+  `limitations` TEXT NULL DEFAULT NULL COMMENT 'manually created text if the analysis has special limitations',
+  `filter` VARCHAR(255) NULL DEFAULT NULL COMMENT 'name of the variant filter', 
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `combo_som_rep_conf_ids` (`ps_tumor_id` ASC, `ps_normal_id` ASC),
+  CONSTRAINT `somatic_report_config_created_by_user` 
+    FOREIGN KEY (`created_by`)
+    REFERENCES `user` (`id`) 
+    ON DELETE NO ACTION 
+    ON UPDATE NO ACTION,
+  CONSTRAINT `somatic_report_config_last_edit_by_user`
+    FOREIGN KEY (`last_edit_by`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `somatic_report_config_ps_normal_id`
+    FOREIGN KEY (`ps_normal_id`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `somatic_report_config_ps_tumor_id`
+    FOREIGN KEY (`ps_tumor_id`) 
+    REFERENCES `processed_sample` (`id`) 
+    ON DELETE NO ACTION 
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARSET = utf8;
+
+-- -----------------------------------------------------
+-- Table `somatic_report_configuration_variant`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `somatic_report_configuration_variant` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `somatic_report_configuration_id` int(11) NOT NULL,
+  `variant_id` int(11) NOT NULL,
+  `exclude_artefact` BOOLEAN NOT NULL,
+  `exclude_low_tumor_content` BOOLEAN NOT NULL,
+  `exclude_low_copy_number` BOOLEAN NOT NULL,
+  `exclude_high_baf_deviation` BOOLEAN NOT NULL,
+  `exclude_other_reason` BOOLEAN NOT NULL,
+  `include_variant_alteration` text DEFAULT NULL,
+  `include_variant_description` text DEFAULT NULL,
+  `comment` text NOT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `som_rep_conf_var_has_som_rep_conf_id` 
+    FOREIGN KEY (`somatic_report_configuration_id`) 
+    REFERENCES `somatic_report_configuration` (`id`) 
+    ON DELETE NO ACTION 
+    ON UPDATE NO ACTION,
+  CONSTRAINT `somatic_report_configuration_variant_has_variant_id`
+    FOREIGN KEY (`variant_id`)
+    REFERENCES `variant` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  UNIQUE INDEX `som_conf_var_combo_uniq_index` (`somatic_report_configuration_id` ASC, `variant_id` ASC)
+)
+ENGINE=InnoDB
+DEFAULT CHARSET=utf8;
+
+-- -----------------------------------------------------
+-- Table `somatic_report_configuration_germl_snv`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `somatic_report_configuration_germl_var` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `somatic_report_configuration_id` int(11) NOT NULL,
+  `variant_id` int(11) NOT NULL,
+  `tum_freq` FLOAT UNSIGNED NULL DEFAULT NULL COMMENT 'frequency of this variant in the tumor sample.',
+  `tum_depth` int(11) UNSIGNED NULL DEFAULT NULL COMMENT 'depth of this variant in the tumor sample.',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `som_rep_conf_germl_var_has_rep_conf_id`
+    FOREIGN KEY (`somatic_report_configuration_id`)
+	REFERENCES `somatic_report_configuration` (`id`)
+	ON DELETE NO ACTION
+	ON UPDATE NO ACTION,
+  CONSTRAINT `som_rep_germl_var_has_var_id`
+    FOREIGN KEY (`variant_id`)
+	REFERENCES `variant` (`id`)
+	ON DELETE NO ACTION
+	ON UPDATE NO ACTION,
+  UNIQUE INDEX `som_conf_germl_var_combo_uni_idx` (`somatic_report_configuration_id` ASC, `variant_id` ASC)
+) COMMENT='variants detected in control tissue that are marked as tumor related by the user'
+ENGINE=InnoDB
+DEFAULT CHARSET=utf8;
+
+
+-- -----------------------------------------------------
+-- Table `somatic_cnv_callset`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `somatic_cnv_callset`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `ps_tumor_id` INT(11) NOT NULL,
+  `ps_normal_id` INT(11) NOT NULL,
+  `caller` ENUM('ClinCNV') NOT NULL,
+  `caller_version` varchar(25) NOT NULL,
+  `call_date` DATETIME NOT NULL,
+  `quality_metrics` TEXT DEFAULT NULL COMMENT 'quality metrics as JSON key-value array',
+  `quality` ENUM('n/a','good','medium','bad') NOT NULL DEFAULT 'n/a',
+  PRIMARY KEY (`id`),
+  INDEX `caller` (`caller` ASC),
+  INDEX `call_date` (`call_date` ASC),
+  INDEX `quality` (`quality` ASC),
+  UNIQUE INDEX `combo_ids` (`ps_tumor_id` ASC, `ps_normal_id` ASC),
+  CONSTRAINT `som_cnv_callset_ps_normal_id`
+    FOREIGN KEY (`ps_normal_id`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `som_cnv_callset_ps_tumor_id`
+    FOREIGN KEY (`ps_tumor_id`) 
+    REFERENCES `processed_sample` (`id`) 
+    ON DELETE NO ACTION 
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COMMENT='somatic CNV call set';
+
+-- -----------------------------------------------------
+-- Table `somatic_cnv`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `somatic_cnv`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `somatic_cnv_callset_id` INT(11) UNSIGNED NOT NULL,
+  `chr` ENUM('chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr20','chr21','chr22','chrY','chrX','chrMT') NOT NULL,
+  `start` INT(11) UNSIGNED NOT NULL,
+  `end` INT(11) UNSIGNED NOT NULL,
+  `cn` FLOAT UNSIGNED NOT NULL COMMENT 'copy-number change in whole sample, including normal parts',
+  `tumor_cn` INT(11) UNSIGNED NOT NULL COMMENT 'copy-number change normalized to tumor tissue only',
+  `tumor_clonality` FLOAT NOT NULL COMMENT 'tumor clonality, i.e. fraction of tumor cells',
+  `quality_metrics` TEXT DEFAULT NULL COMMENT 'quality metrics as JSON key-value array',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `som_cnv_references_cnv_callset`
+    FOREIGN KEY (`somatic_cnv_callset_id`)
+    REFERENCES `somatic_cnv_callset` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `unique_callset_cnv_pair`
+    UNIQUE(`somatic_cnv_callset_id`,`chr`,`start`,`end`),
+  INDEX `chr` (`chr` ASC),
+  INDEX `start` (`start` ASC),
+  INDEX `end` (`end` ASC),
+  INDEX `tumor_cn` (`tumor_cn` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COMMENT='somatic CNV';
+
+-- -----------------------------------------------------
+-- Table `somatic_report_configuration_cnv`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `somatic_report_configuration_cnv` 
+(
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `somatic_report_configuration_id` int(11) NOT NULL,
+  `somatic_cnv_id` int(11) UNSIGNED NOT NULL,
+  `exclude_artefact` BOOLEAN NOT NULL,
+  `exclude_low_tumor_content` BOOLEAN NOT NULL,
+  `exclude_low_copy_number` BOOLEAN NOT NULL,
+  `exclude_high_baf_deviation` BOOLEAN NOT NULL,
+  `exclude_other_reason` BOOLEAN NOT NULL,
+  `comment` text NOT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `som_rep_conf_cnv_has_som_rep_conf_id` 
+    FOREIGN KEY (`somatic_report_configuration_id`) 
+    REFERENCES `somatic_report_configuration` (`id`) 
+    ON DELETE NO ACTION 
+    ON UPDATE NO ACTION,
+  CONSTRAINT `som_report_conf_cnv_has_som_cnv_id`
+    FOREIGN KEY (`somatic_cnv_id`)
+    REFERENCES `somatic_cnv` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+    UNIQUE INDEX `som_conf_cnv_combo_uniq_index` (`somatic_report_configuration_id` ASC, `somatic_cnv_id` ASC)
+)
+ENGINE=InnoDB
+DEFAULT CHARSET=utf8;
+
+
+-- -----------------------------------------------------
+-- Table `report_configuration`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `report_configuration`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `processed_sample_id` INT(11) NOT NULL,
+  `created_by` int(11) NOT NULL,
+  `created_date` DATETIME NOT NULL,
+  `last_edit_by` int(11) DEFAULT NULL,
+  `last_edit_date` TIMESTAMP NULL DEFAULT NULL,
+  `finalized_by` int(11) DEFAULT NULL,
+  `finalized_date` TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `processed_sample_id_unique` (`processed_sample_id`),
+  CONSTRAINT `fk_processed_sample_id2`
+    FOREIGN KEY (`processed_sample_id` )
+    REFERENCES `processed_sample` (`id` )
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `report_configuration_created_by`
+    FOREIGN KEY (`created_by`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `report_configuration_last_edit_by`
+    FOREIGN KEY (`last_edit_by`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `report_configuration_finalized_by`
+    FOREIGN KEY (`finalized_by`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `report_configuration_variant`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `report_configuration_variant`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `report_configuration_id` INT(11) NOT NULL,
+  `variant_id` INT(11) NOT NULL,
+  `type` ENUM('diagnostic variant', 'candidate variant', 'incidental finding') NOT NULL,
+  `causal` BOOLEAN NOT NULL,
+  `inheritance` ENUM('n/a', 'AR','AD','XLR','XLD','MT') NOT NULL,
+  `de_novo` BOOLEAN NOT NULL,
+  `mosaic` BOOLEAN NOT NULL,
+  `compound_heterozygous` BOOLEAN NOT NULL,
+  `exclude_artefact` BOOLEAN NOT NULL,
+  `exclude_frequency` BOOLEAN NOT NULL,
+  `exclude_phenotype` BOOLEAN NOT NULL,
+  `exclude_mechanism` BOOLEAN NOT NULL,
+  `exclude_other` BOOLEAN NOT NULL,
+  `comments` text NOT NULL,
+  `comments2` text NOT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_report_configuration`
+    FOREIGN KEY (`report_configuration_id` )
+    REFERENCES `report_configuration` (`id` )
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_report_configuration_variant_has_variant`
+    FOREIGN KEY (`variant_id`)
+    REFERENCES `variant` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  UNIQUE INDEX `config_variant_combo_uniq` (`report_configuration_id` ASC, `variant_id` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `disease_term`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `disease_term`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `source` ENUM('OrphaNet') NOT NULL,
+  `identifier` VARCHAR(40) CHARACTER SET 'utf8' NOT NULL,
+  `name` TEXT CHARACTER SET 'utf8' NOT NULL,
+  `synonyms` TEXT CHARACTER SET 'utf8' DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `disease_source` (`source` ASC),
+  UNIQUE KEY `disease_id` (`identifier`),
+  INDEX `disease_name` (`name`(50) ASC),
+  INDEX `disease_synonyms` (`synonyms`(50) ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `disease_gene`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `disease_gene`
+(
+  `disease_term_id` INT(11) UNSIGNED NOT NULL,
+  `gene` VARCHAR(40) CHARACTER SET 'utf8' NOT NULL,
+  PRIMARY KEY (`disease_term_id`, `gene`),
+  CONSTRAINT `disease_genes_ibfk_1`
+    FOREIGN KEY (`disease_term_id`)
+    REFERENCES `disease_term` (`id`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `cnv_callset`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `cnv_callset`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `processed_sample_id` INT(11) NOT NULL,
+  `caller` ENUM('CnvHunter', 'ClinCNV') NOT NULL,
+  `caller_version` varchar(25) NOT NULL,
+  `call_date` DATETIME DEFAULT NULL,
+  `quality_metrics` TEXT DEFAULT NULL COMMENT 'quality metrics as JSON key-value array',
+  `quality` ENUM('n/a','good','medium','bad') NOT NULL DEFAULT 'n/a',
+  PRIMARY KEY (`id`),
+  INDEX `caller` (`quality` ASC),
+  INDEX `call_date` (`call_date` ASC),
+  INDEX `quality` (`quality` ASC),
+  UNIQUE KEY `cnv_callset_references_processed_sample` (`processed_sample_id`),
+  CONSTRAINT `cnv_callset_references_processed_sample`
+    FOREIGN KEY (`processed_sample_id`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COMMENT='germline CNV call set';
+
+-- -----------------------------------------------------
+-- Table `cnv`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `cnv`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `cnv_callset_id` INT(11) UNSIGNED NOT NULL,
+  `chr` ENUM('chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr20','chr21','chr22','chrY','chrX','chrMT') NOT NULL,
+  `start` INT(11) UNSIGNED NOT NULL,
+  `end` INT(11) UNSIGNED NOT NULL,
+  `cn` INT(11) UNSIGNED NOT NULL COMMENT 'copy-number',
+  `quality_metrics` TEXT DEFAULT NULL COMMENT 'quality metrics as JSON key-value array',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `cnv_references_cnv_callset`
+    FOREIGN KEY (`cnv_callset_id`)
+    REFERENCES `cnv_callset` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  INDEX `chr` (`chr` ASC),
+  INDEX `start` (`start` ASC),
+  INDEX `end` (`end` ASC),
+  INDEX `cn` (`cn` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COMMENT='germline CNV';
+
+-- -----------------------------------------------------
+-- Table `report_configuration_cnv`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `report_configuration_cnv`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `report_configuration_id` INT(11) NOT NULL,
+  `cnv_id` INT(11) UNSIGNED NOT NULL,
+  `type` ENUM('diagnostic variant', 'candidate variant', 'incidental finding') NOT NULL,
+  `causal` BOOLEAN NOT NULL,
+  `class` ENUM('n/a','1','2','3','4','5','M') NOT NULL,
+  `inheritance` ENUM('n/a', 'AR','AD','XLR','XLD','MT') NOT NULL,
+  `de_novo` BOOLEAN NOT NULL,
+  `mosaic` BOOLEAN NOT NULL,
+  `compound_heterozygous` BOOLEAN NOT NULL,
+  `exclude_artefact` BOOLEAN NOT NULL,
+  `exclude_frequency` BOOLEAN NOT NULL,
+  `exclude_phenotype` BOOLEAN NOT NULL,
+  `exclude_mechanism` BOOLEAN NOT NULL,
+  `exclude_other` BOOLEAN NOT NULL,
+  `comments` text NOT NULL,
+  `comments2` text NOT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_report_configuration2`
+    FOREIGN KEY (`report_configuration_id` )
+    REFERENCES `report_configuration` (`id` )
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_report_configuration_cnv_has_cnv`
+    FOREIGN KEY (`cnv_id`)
+    REFERENCES `cnv` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  UNIQUE INDEX `config_variant_combo_uniq` (`report_configuration_id` ASC, `cnv_id` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `sv_callset`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sv_callset`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `processed_sample_id` INT(11) NOT NULL,
+  `caller` ENUM('Manta') NOT NULL,
+  `caller_version` varchar(25) NOT NULL,
+  `call_date` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `call_date` (`call_date` ASC),
+  UNIQUE KEY `sv_callset_references_processed_sample` (`processed_sample_id`),
+  CONSTRAINT `sv_callset_references_processed_sample`
+    FOREIGN KEY (`processed_sample_id`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COMMENT='SV call set';
+
+-- -----------------------------------------------------
+-- Table `sv_deletion`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sv_deletion`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `sv_callset_id` INT(11) UNSIGNED NOT NULL,
+  `chr` ENUM('chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr20','chr21','chr22','chrY','chrX','chrMT') NOT NULL,
+  `start_min` INT(11) UNSIGNED NOT NULL,
+  `start_max` INT(11) UNSIGNED NOT NULL,
+  `end_min` INT(11) UNSIGNED NOT NULL,
+  `end_max` INT(11) UNSIGNED NOT NULL,
+  `quality_metrics` TEXT DEFAULT NULL COMMENT 'quality metrics as JSON key-value array',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `sv_del_references_sv_callset`
+    FOREIGN KEY (`sv_callset_id`)
+    REFERENCES `sv_callset` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  INDEX `exact_match` (`chr`, `start_min`, `start_max`, `end_min`, `end_max`),
+  INDEX `overlap_match` (`chr`, `start_min`, `end_max`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COMMENT='SV deletion';
+
+-- -----------------------------------------------------
+-- Table `sv_duplication`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sv_duplication`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `sv_callset_id` INT(11) UNSIGNED NOT NULL,
+  `chr` ENUM('chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr20','chr21','chr22','chrY','chrX','chrMT') NOT NULL,
+  `start_min` INT(11) UNSIGNED NOT NULL,
+  `start_max` INT(11) UNSIGNED NOT NULL,
+  `end_min` INT(11) UNSIGNED NOT NULL,
+  `end_max` INT(11) UNSIGNED NOT NULL,
+  `quality_metrics` TEXT DEFAULT NULL COMMENT 'quality metrics as JSON key-value array',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `sv_dup_references_sv_callset`
+    FOREIGN KEY (`sv_callset_id`)
+    REFERENCES `sv_callset` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  INDEX `exact_match` (`chr`, `start_min`, `start_max`, `end_min`, `end_max`),
+  INDEX `overlap_match` (`chr`, `start_min`, `end_max`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COMMENT='SV duplication';
+
+-- -----------------------------------------------------
+-- Table `sv_insertion`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sv_insertion`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `sv_callset_id` INT(11) UNSIGNED NOT NULL,
+  `chr` ENUM('chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr20','chr21','chr22','chrY','chrX','chrMT') NOT NULL,
+  `pos`INT(11) UNSIGNED NOT NULL,
+  `ci_lower` INT(5) UNSIGNED NOT NULL DEFAULT 0,
+  `ci_upper` INT(5) UNSIGNED NOT NULL,
+  `inserted_sequence` TEXT DEFAULT NULL,
+  `known_left` TEXT DEFAULT NULL,
+  `known_right` TEXT DEFAULT NULL,
+  `quality_metrics` TEXT DEFAULT NULL COMMENT 'quality metrics as JSON key-value array',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `sv_ins_references_sv_callset`
+    FOREIGN KEY (`sv_callset_id`)
+    REFERENCES `sv_callset` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  INDEX `match` (`chr`, `pos`, `ci_upper`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COMMENT='SV insertion';
+
+-- -----------------------------------------------------
+-- Table `sv_inversion`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sv_inversion`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `sv_callset_id` INT(11) UNSIGNED NOT NULL,
+  `chr` ENUM('chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr20','chr21','chr22','chrY','chrX','chrMT') NOT NULL,
+  `start_min` INT(11) UNSIGNED NOT NULL,
+  `start_max` INT(11) UNSIGNED NOT NULL,
+  `end_min` INT(11) UNSIGNED NOT NULL,
+  `end_max` INT(11) UNSIGNED NOT NULL,
+  `quality_metrics` TEXT DEFAULT NULL COMMENT 'quality metrics as JSON key-value array',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `sv_inv_references_sv_callset`
+    FOREIGN KEY (`sv_callset_id`)
+    REFERENCES `sv_callset` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  INDEX `exact_match` (`chr`, `start_min`, `start_max`, `end_min`, `end_max`),
+  INDEX `overlap_match` (`chr`, `start_min`, `end_max`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COMMENT='SV inversion';
+
+-- -----------------------------------------------------
+-- Table `sv_translocation`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `sv_translocation`
+(
+  `id` INT(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `sv_callset_id` INT(11) UNSIGNED NOT NULL,
+  `chr1` ENUM('chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr20','chr21','chr22','chrY','chrX','chrMT') NOT NULL,
+  `start1` INT(11) UNSIGNED NOT NULL,
+  `end1` INT(11) UNSIGNED NOT NULL,
+  `chr2` ENUM('chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr20','chr21','chr22','chrY','chrX','chrMT') NOT NULL,
+  `start2` INT(11) UNSIGNED NOT NULL,
+  `end2` INT(11) UNSIGNED NOT NULL,
+  `quality_metrics` TEXT DEFAULT NULL COMMENT 'quality metrics as JSON key-value array',
+  PRIMARY KEY (`id`),
+  CONSTRAINT `sv_bnd_references_sv_callset`
+    FOREIGN KEY (`sv_callset_id`)
+    REFERENCES `sv_callset` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  INDEX `match` (`chr1`, `start1`, `end1`, `chr2`, `start2`, `end2`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8
+COMMENT='SV translocation';
+
+-- -----------------------------------------------------
+-- Table `report_configuration_sv`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `report_configuration_sv`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `report_configuration_id` INT(11) NOT NULL,
+  `sv_deletion_id` INT(11) UNSIGNED DEFAULT NULL,
+  `sv_duplication_id` INT(11) UNSIGNED DEFAULT NULL,
+  `sv_insertion_id` INT(11) UNSIGNED DEFAULT NULL,
+  `sv_inversion_id` INT(11) UNSIGNED DEFAULT NULL,
+  `sv_translocation_id` INT(11) UNSIGNED DEFAULT NULL,
+  `type` ENUM('diagnostic variant', 'candidate variant', 'incidental finding') NOT NULL,
+  `causal` BOOLEAN NOT NULL,
+  `class` ENUM('n/a','1','2','3','4','5','M') NOT NULL,
+  `inheritance` ENUM('n/a', 'AR','AD','XLR','XLD','MT') NOT NULL,
+  `de_novo` BOOLEAN NOT NULL,
+  `mosaic` BOOLEAN NOT NULL,
+  `compound_heterozygous` BOOLEAN NOT NULL,
+  `exclude_artefact` BOOLEAN NOT NULL,
+  `exclude_frequency` BOOLEAN NOT NULL,
+  `exclude_phenotype` BOOLEAN NOT NULL,
+  `exclude_mechanism` BOOLEAN NOT NULL,
+  `exclude_other` BOOLEAN NOT NULL,
+  `comments` text NOT NULL,
+  `comments2` text NOT NULL,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `fk_report_configuration3`
+    FOREIGN KEY (`report_configuration_id` )
+    REFERENCES `report_configuration` (`id` )
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_report_configuration_sv_has_sv_deletion`
+    FOREIGN KEY (`sv_deletion_id`)
+    REFERENCES `sv_deletion` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_report_configuration_sv_has_sv_duplication`
+    FOREIGN KEY (`sv_duplication_id`)
+    REFERENCES `sv_duplication` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_report_configuration_sv_has_sv_insertion`
+    FOREIGN KEY (`sv_insertion_id`)
+    REFERENCES `sv_insertion` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_report_configuration_sv_has_sv_inversion`
+    FOREIGN KEY (`sv_inversion_id`)
+    REFERENCES `sv_inversion` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_report_configuration_sv_has_sv_translocation`
+    FOREIGN KEY (`sv_translocation_id`)
+    REFERENCES `sv_translocation` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  UNIQUE INDEX `config_variant_combo_uniq` (`report_configuration_id` ASC, `sv_deletion_id` ASC, `sv_duplication_id` ASC, `sv_insertion_id` ASC, `sv_inversion_id` ASC, `sv_translocation_id` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `evaluation_sheet_data`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `evaluation_sheet_data`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `processed_sample_id` INT(11) NOT NULL, 
+  `dna_rna_id` TEXT CHARACTER SET 'utf8' DEFAULT NULL,
+  `reviewer1` INT NOT NULL,
+  `review_date1` DATE NOT NULL,
+  `reviewer2` INT NOT NULL,
+  `review_date2` DATE NOT NULL,
+  `analysis_scope` TEXT CHARACTER SET 'utf8' DEFAULT NULL,
+  `acmg_requested` BOOLEAN DEFAULT FALSE NOT NULL,
+  `acmg_analyzed` BOOLEAN DEFAULT FALSE NOT NULL,
+  `acmg_noticeable` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_freq_based_dominant` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_freq_based_recessive` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_mito` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_x_chr` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_cnv` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_svs` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_res` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_mosaic` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_phenotype` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_multisample` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_trio_stringent` BOOLEAN DEFAULT FALSE NOT NULL,
+  `filtered_by_trio_relaxed` BOOLEAN DEFAULT FALSE NOT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `processed_sample_id` (`processed_sample_id` ASC),
+  UNIQUE KEY `evaluation_sheet_data_references_processed_sample` (`processed_sample_id`),
+  CONSTRAINT `evaluation_sheet_data_references_processed_sample`
+    FOREIGN KEY (`processed_sample_id`)
+    REFERENCES `processed_sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `evaluation_sheet_data_references_user1`
+    FOREIGN KEY (`reviewer1`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `evaluation_sheet_data_references_user2`
+    FOREIGN KEY (`reviewer2`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `preferred_transcripts`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `preferred_transcripts`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(40) NOT NULL,
+  `added_by` INT(11) NOT NULL,
+  `added_date` timestamp NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `combo_som_rep_conf_ids` (`name` ASC),
+  CONSTRAINT `preferred_transcriptsg_created_by_user`
+    FOREIGN KEY (`added_by`)
+    REFERENCES `user` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+SET SQL_MODE=@OLD_SQL_MODE;
+SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
+SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;
+
+-- -----------------------------------------------------
+-- Table `variant_validation`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `variant_validation`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `user_id` INT(11) NOT NULL,
+  `date` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `sample_id` INT(11) NOT NULL,
+  `variant_type` ENUM('SNV_INDEL', 'CNV', 'SV') NOT NULL,
+  `variant_id` INT(11) DEFAULT NULL,
+  `cnv_id` INT(11) UNSIGNED DEFAULT NULL,
+  `sv_deletion_id` INT(11) UNSIGNED DEFAULT NULL,
+  `sv_duplication_id` INT(11) UNSIGNED DEFAULT NULL,
+  `sv_insertion_id` INT(11) UNSIGNED DEFAULT NULL,
+  `sv_inversion_id` INT(11) UNSIGNED DEFAULT NULL,
+  `sv_translocation_id` INT(11) UNSIGNED DEFAULT NULL,
+  `genotype` ENUM('hom','het') DEFAULT NULL,
+  `validation_method` ENUM('Sanger sequencing', 'breakpoint PCR', 'qPCR', 'MLPA', 'Array', 'shallow WGS', 'fragment length analysis', 'n/a') NOT NULL DEFAULT 'n/a',
+  `status` ENUM('n/a','to validate','to segregate','for reporting','true positive','false positive','wrong genotype') NOT NULL DEFAULT 'n/a',
+  `comment` TEXT NULL DEFAULT NULL,
+PRIMARY KEY (`id`),
+INDEX `fk_user_id` (`user_id` ASC),
+CONSTRAINT `vv_user`
+  FOREIGN KEY (`user_id`)
+  REFERENCES `user` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `fk_variant_validation_has_sample`
+    FOREIGN KEY (`sample_id`)
+    REFERENCES `sample` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+CONSTRAINT `fk_variant_validation_has_variant`
+  FOREIGN KEY (`variant_id`)
+  REFERENCES `variant` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `fk_variant_validation_has_cnv`
+  FOREIGN KEY (`cnv_id`)
+  REFERENCES `cnv` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `fk_variant_validation_has_sv_deletion`
+  FOREIGN KEY (`sv_deletion_id`)
+  REFERENCES `sv_deletion` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `fk_variant_validation_has_sv_duplication`
+  FOREIGN KEY (`sv_duplication_id`)
+  REFERENCES `sv_duplication` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `fk_variant_validation_has_sv_insertion`
+  FOREIGN KEY (`sv_insertion_id`)
+  REFERENCES `sv_insertion` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `fk_variant_validation_has_sv_inversion`
+  FOREIGN KEY (`sv_inversion_id`)
+  REFERENCES `sv_inversion` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `fk_variant_validation_has_sv_translocation`
+  FOREIGN KEY (`sv_translocation_id`)
+  REFERENCES `sv_translocation` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+UNIQUE INDEX `variant_validation_unique_var` (`sample_id`, `variant_id`, `cnv_id`, `sv_deletion_id`, `sv_duplication_id`, `sv_insertion_id`, `sv_inversion_id`, `sv_translocation_id`),
+INDEX `status` (`status` ASC),
+INDEX `variant_type` (`variant_type` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `study`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `study`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(50) NOT NULL,
+  `description` TEXT NOT NULL,
+PRIMARY KEY (`id`),
+UNIQUE INDEX `name_UNIQUE` (`name` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `study_sample`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `study_sample`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `study_id` INT(11) NOT NULL,
+  `processed_sample_id` INT(11) NOT NULL,
+  `study_sample_idendifier` VARCHAR(50) DEFAULT NULL,
+PRIMARY KEY (`id`),
+CONSTRAINT `fk_study_sample_has_study`
+  FOREIGN KEY (`study_id`)
+  REFERENCES `study` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `fk_study_sample_has_ps`
+  FOREIGN KEY (`processed_sample_id`)
+  REFERENCES `processed_sample` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+  UNIQUE INDEX `unique_sample_ps` (`study_id`, `processed_sample_id`),
+INDEX `i_study_sample_idendifier` (`study_sample_idendifier` ASC)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `secondary_analysis`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `secondary_analysis`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `type` enum('multi sample','trio','somatic') NOT NULL,
+  `gsvar_file` VARCHAR(1000) NOT NULL,
+PRIMARY KEY (`id`),
+UNIQUE INDEX `unique_gsvar` (`gsvar_file`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `gaps`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `gaps`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `chr` ENUM('chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr20','chr21','chr22','chrY','chrX','chrMT') NOT NULL,
+  `start` INT(11) UNSIGNED NOT NULL,
+  `end` INT(11) UNSIGNED NOT NULL,
+  `processed_sample_id` INT(11) NOT NULL,
+  `status` enum('checked visually','to close','in progress','closed','canceled') NOT NULL,
+  `history` TEXT,
+PRIMARY KEY (`id`),
+INDEX `gap_index` (`chr` ASC, `start` ASC, `end` ASC),
+INDEX `processed_sample_id` (`processed_sample_id` ASC),
+INDEX `status` (`status` ASC),
+CONSTRAINT `fk_gap_has_processed_sample1`
+  FOREIGN KEY (`processed_sample_id`)
+  REFERENCES `processed_sample` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+
+-- -----------------------------------------------------
+-- Table `gene_pseudogene_relation`
+-- -----------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `gene_pseudogene_relation`
+(
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`parent_gene_id` int(10) unsigned NOT NULL,
+`pseudogene_gene_id` int(10) unsigned DEFAULT NULL,
+`gene_name` varchar(40) DEFAULT NULL,
+
+PRIMARY KEY (`id`),
+CONSTRAINT `fk_parent_gene_id`
+  FOREIGN KEY (`parent_gene_id` )
+  REFERENCES `gene` (`id` )
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `fk_pseudogene_gene_id`
+  FOREIGN KEY (`pseudogene_gene_id` )
+  REFERENCES `gene` (`id` )
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+UNIQUE KEY `pseudo_gene_relation` (`parent_gene_id`, `pseudogene_gene_id`, `gene_name`),
+INDEX `parent_gene_id` (`parent_gene_id` ASC),
+INDEX `pseudogene_gene_id` (`pseudogene_gene_id` ASC)
+) 
+ENGINE=InnoDB DEFAULT 
+CHARSET=utf8
+COMMENT='Gene-Pseudogene relation';
+
+-- -----------------------------------------------------
+-- Table `processed_sample_ancestry`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `processed_sample_ancestry`
+(
+  `processed_sample_id` INT(11) NOT NULL,
+  `num_snps` INT(11) NOT NULL,
+  `score_afr` FLOAT NOT NULL,
+  `score_eur` FLOAT NOT NULL,
+  `score_sas` FLOAT NOT NULL,
+  `score_eas` FLOAT NOT NULL,
+  `population` enum('AFR','EUR','SAS','EAS','ADMIXED/UNKNOWN') NOT NULL,
+PRIMARY KEY (`processed_sample_id`),
+CONSTRAINT `fk_processed_sample_ancestry_has_processed_sample`
+  FOREIGN KEY (`processed_sample_id`)
+  REFERENCES `processed_sample` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `subpanels`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `subpanels`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(200) NOT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_date` DATE NOT NULL,
+  `mode` ENUM('exon', 'gene') NOT NULL,
+  `extend` INT(11) NOT NULL,
+  `genes` MEDIUMTEXT NOT NULL,
+  `roi` MEDIUMTEXT NOT NULL,
+  `archived` TINYINT(1) NOT NULL,
+PRIMARY KEY (`id`),
+UNIQUE KEY `name` (`name`),
+INDEX(`created_by`),
+INDEX(`created_date`),
+INDEX(`archived`),
+CONSTRAINT `subpanels_created_by_user`
+  FOREIGN KEY (`created_by`)
+  REFERENCES `user` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `cfdna_panels`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `cfdna_panels`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `tumor_id` INT(11) NOT NULL,
+  `cfdna_id` INT(11) DEFAULT NULL,
+  `created_by` INT(11) DEFAULT NULL,
+  `created_date` DATE NOT NULL,
+  `processing_system_id` INT(11) NOT NULL,
+  `bed` MEDIUMTEXT NOT NULL,
+  `vcf` MEDIUMTEXT NOT NULL,
+  `excluded_regions` MEDIUMTEXT DEFAULT NULL,
+PRIMARY KEY (`id`),
+INDEX(`created_by`),
+INDEX(`created_date`),
+INDEX(`tumor_id`),
+UNIQUE `unique_cfdna_panel`(`tumor_id`, `processing_system_id`),
+CONSTRAINT `cfdna_panels_tumor_id`
+  FOREIGN KEY (`tumor_id`)
+  REFERENCES `processed_sample` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `cfdna_panels_cfdna_id`
+  FOREIGN KEY (`cfdna_id`)
+  REFERENCES `processed_sample` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `cfdna_panels_created_by_user`
+  FOREIGN KEY (`created_by`)
+  REFERENCES `user` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION,
+CONSTRAINT `cfdna_panels_processing_system_id`
+  FOREIGN KEY (`processing_system_id`)
+  REFERENCES `processing_system` (`id`)
+  ON DELETE NO ACTION
+  ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `cfdna_panel_genes`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `cfdna_panel_genes`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `gene_name` VARCHAR(40) CHARACTER SET 'utf8' NOT NULL,
+  `chr` ENUM('chr1','chr2','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr20','chr21','chr22','chrY','chrX','chrMT') NOT NULL,
+  `start` INT(11) UNSIGNED NOT NULL,
+  `end` INT(11) UNSIGNED NOT NULL,
+  `date` DATE NOT NULL,
+  `bed` MEDIUMTEXT NOT NULL,
+PRIMARY KEY (`id`),
+UNIQUE INDEX(`gene_name`)
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+-- -----------------------------------------------------
+-- Table `variant_literature`
+-- -----------------------------------------------------
+CREATE  TABLE IF NOT EXISTS `variant_literature`
+(
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `variant_id` INT(11) NOT NULL,
+  `pubmed` VARCHAR(12) CHARACTER SET 'utf8' NOT NULL,
+  PRIMARY KEY (`id`),
+  INDEX(`variant_id`),
+  UNIQUE INDEX `variant_literature_UNIQUE` (`variant_id` ASC, `pubmed` ASC),
+  CONSTRAINT `variant_literature_variant_id`
+    FOREIGN KEY (`variant_id`)
+    REFERENCES `variant` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION
+)
+ENGINE = InnoDB
+DEFAULT CHARACTER SET = utf8;
+
+SET DEFINE OFF;
+CREATE SEQUENCE AFW_25_VERSN_PUBLC_SEQ
+  START WITH 1
+  MAXVALUE 9999999999999999999999999999
+  MINVALUE 1
+  NOCYCLE
+  CACHE 20
+  NOORDER
+/
+
+-- This query extracts dose+durations of neuromuscular blocking agents
+-- Note: we assume that injections will be filtered for carevue as they will have starttime = stopttime.
+
+-- Get drug administration data from CareVue and MetaVision
+-- metavision is simple and only requires one temporary table
+with drugmv as
+(
+  select
+      icustay_id, orderid
+    , rate as vaso_rate
+    , amount as vaso_amount
+    , starttime
+    , endtime
+  from inputevents_mv
+  where itemid in
+  (
+      222062 -- Vecuronium (664 rows, 154 infusion rows)
+    , 221555 -- Cisatracurium (9334 rows, 8970 infusion rows)
+  )
+  and statusdescription != 'Rewritten' -- only valid orders
+  and rate is not null -- only continuous infusions
+)
+, drugcv1 as
+(
+  select
+    icustay_id, charttime
+    -- where clause below ensures all rows are instance of the drug
+    , 1 as drug
+
+    -- the 'stopped' column indicates if a drug has been disconnected
+    , max(case when stopped in ('Stopped','D/C''d') then 1 else 0 end) as drug_stopped
+
+    -- we only include continuous infusions, therefore expect a rate
+    , max(case
+            -- for "free form" entries (itemid >= 40000) rate is not available
+            when itemid >= 40000 and amount is not null then 1
+            when itemid <  40000 and rate is not null then 1
+          else 0 end) as drug_null
+    , max(case
+            -- for "free form" entries (itemid >= 40000) rate is not available
+            when itemid >= 40000 then coalesce(rate, amount)
+          else rate end) as drug_rate
+    , max(amount) as drug_amount
+  from inputevents_cv
+  where itemid in
+  (
+      30114 -- Cisatracurium (63994 rows)
+    , 30138	-- Vecuronium	 (5160 rows)
+    , 30113 -- Atracurium  (1163 rows)
+    -- Below rows are less frequent ad-hoc documentation, but worth including!
+    , 42174	-- nimbex cc/hr (207 rows)
+    , 42385	-- Cisatracurium gtt (156 rows)
+    , 41916	-- NIMBEX	inputevents_cv (136 rows)
+    , 42100	-- cistatracurium	(132 rows)
+    , 42045	-- nimbex mcg/kg/min (78 rows)
+    , 42246 -- CISATRICARIUM CC/HR (70 rows)
+    , 42291	-- NIMBEX CC/HR (48 rows)
+    , 42590	-- nimbex	inputevents_cv (38 rows)
+    , 42284	-- CISATRACURIUM DRIP (9 rows)
+    , 45096	-- Vecuronium drip (2 rows)
+  )
+  group by icustay_id, charttime
+  UNION
+  -- add data from chartevents
+  select
+    icustay_id, charttime
+    -- where clause below ensures all rows are instance of the drug
+    , 1 as drug
+
+    -- the 'stopped' column indicates if a drug has been disconnected
+    , max(case when stopped in ('Stopped','D/C''d') then 1 else 0 end) as drug_stopped
+    , max(case when valuenum <= 10 then 0 else 1 end) as drug_null
+
+    -- educated guess!
+    , max(case when valuenum <= 10 then valuenum else null end) as drug_rate
+    , max(case when valuenum  > 10 then valuenum else null end) as drug_amount
+  from chartevents
+  where itemid in
+  (
+      1856 -- Vecuronium mcg/min  (8 rows)
+    , 2164 -- NIMBEX MG/KG/HR  (243 rows)
+    , 2548 -- nimbex mg/kg/hr  (103 rows)
+    , 2285 -- nimbex mcg/kg/min  (85 rows)
+    , 2290 -- nimbex mcg/kg/m  (32 rows)
+    , 2670 -- nimbex  (38 rows)
+    , 2546 -- CISATRACURIUMMG/KG/H  (7 rows)
+    , 1098 -- cisatracurium mg/kg  (36 rows)
+    , 2390 -- cisatracurium mg/hr  (15 rows)
+    , 2511 -- CISATRACURIUM GTT  (4 rows)
+    , 1028 -- Cisatracurium  (208 rows)
+    , 1858 -- cisatracurium  (351 rows)
+  )
+  group by icustay_id, charttime
+
+)
+, drugcv2 as
+(
+  select v.*
+    , sum(drug_null) over (partition by icustay_id order by charttime) as drug_partition
+  from
+    drugcv1 v
+)
+, drugcv3 as
+(
+  select v.*
+    , first_value(drug_rate) over (partition by icustay_id, drug_partition order by charttime) as drug_prevrate_ifnull
+  from
+    drugcv2 v
+)
+, drugcv4 as
+(
+select
+    icustay_id
+    , charttime
+    -- , (CHARTTIME - (LAG(CHARTTIME, 1) OVER (partition by icustay_id, drug order by charttime))) AS delta
+
+    , drug
+    , drug_rate
+    , drug_amount
+    , drug_stopped
+    , drug_prevrate_ifnull
+
+    -- We define start time here
+    , case
+        when drug = 0 then null
+
+        -- if this is the first instance of the drug
+        when drug_rate > 0 and
+          LAG(drug_prevrate_ifnull,1)
+          OVER
+          (
+          partition by icustay_id, drug, drug_null
+          order by charttime
+          )
+          is null
+          then 1
+
+        -- you often get a string of 0s
+        -- we decide not to set these as 1, just because it makes drugnum sequential
+        when drug_rate = 0 and
+          LAG(drug_prevrate_ifnull,1)
+          OVER
+          (
+          partition by icustay_id, drug
+          order by charttime
+          )
+          = 0
+          then 0
+
+        -- sometimes you get a string of NULL, associated with 0 volumes
+        -- same reason as before, we decide not to set these as 1
+        -- drug_prevrate_ifnull is equal to the previous value *iff* the current value is null
+        when drug_prevrate_ifnull = 0 and
+          LAG(drug_prevrate_ifnull,1)
+          OVER
+          (
+          partition by icustay_id, drug
+          order by charttime
+          )
+          = 0
+          then 0
+
+        -- If the last recorded rate was 0, newdrug = 1
+        when LAG(drug_prevrate_ifnull,1)
+          OVER
+          (
+          partition by icustay_id, drug
+          order by charttime
+          ) = 0
+          then 1
+
+        -- If the last recorded drug was D/C'd, newdrug = 1
+        when
+          LAG(drug_stopped,1)
+          OVER
+          (
+          partition by icustay_id, drug
+          order by charttime
+          )
+          = 1 then 1
+
+        when (CHARTTIME - (LAG(CHARTTIME, 1) OVER (partition by icustay_id, drug order by charttime))) > (interval '8 hours') then 1
+      else null
+      end as drug_start
+
+FROM
+  drugcv3
+)
+-- propagate start/stop flags forward in time
+, drugcv5 as
+(
+  select v.*
+    , SUM(drug_start) OVER (partition by icustay_id, drug order by charttime) as drug_first
+FROM
+  drugcv4 v
+)
+, drugcv6 as
+(
+  select v.*
+    -- We define end time here
+    , case
+        when drug = 0
+          then null
+
+        -- If the recorded drug was D/C'd, this is an end time
+        when drug_stopped = 1
+          then drug_first
+
+        -- If the rate is zero, this is the end time
+        when drug_rate = 0
+          then drug_first
+
+        -- the last row in the table is always a potential end time
+        -- this captures patients who die/are discharged while on drug
+        -- in principle, this could add an extra end time for the drug
+        -- however, since we later group on drug_start, any extra end times are ignored
+        when LEAD(CHARTTIME,1)
+          OVER
+          (
+          partition by icustay_id, drug
+          order by charttime
+          ) is null
+          then drug_first
+
+        else null
+        end as drug_stop
+    from drugcv5 v
+)
+
+-- -- if you want to look at the results of the table before grouping:
+-- select
+--   icustay_id, charttime, drug, drug_rate, drug_amount
+--     , drug_stopped
+--     , drug_start
+--     , drug_first
+--     , drug_stop
+-- from drugcv6 order by icustay_id, charttime;
+
+, drugcv7 as
+(
+select
+  icustay_id
+  , charttime as starttime
+  , lead(charttime) OVER (partition by icustay_id, drug_first order by charttime) as endtime
+  , drug, drug_rate, drug_amount, drug_stop, drug_start, drug_first
+from drugcv6
+where
+  drug_first is not null -- bogus data
+and
+  drug_first != 0 -- sometimes *only* a rate of 0 appears, i.e. the drug is never actually delivered
+and
+  icustay_id is not null -- there are data for "floating" admissions, we don't worry about these
+)
+-- table of start/stop times for event
+, drugcv8 as
+(
+  select
+    icustay_id
+    , starttime, endtime
+    , drug, drug_rate, drug_amount, drug_stop, drug_start, drug_first
+  from drugcv7
+  where endtime is not null
+  and drug_rate > 0
+  and starttime != endtime
+)
+-- collapse these start/stop times down if the rate doesn't change
+, drugcv9 as
+(
+  select
+    icustay_id
+    , starttime, endtime
+    , case
+        when LAG(endtime) OVER (partition by icustay_id order by starttime, endtime) = starttime
+        AND  LAG(drug_rate) OVER (partition by icustay_id order by starttime, endtime) = drug_rate
+        THEN 0
+      else 1
+    end as drug_groups
+    , drug, drug_rate, drug_amount, drug_stop, drug_start, drug_first
+  from drugcv8
+  where endtime is not null
+  and drug_rate > 0
+  and starttime != endtime
+)
+, drugcv10 as
+(
+  select
+    icustay_id
+    , starttime, endtime
+    , drug_groups
+    , SUM(drug_groups) OVER (partition by icustay_id order by starttime, endtime) as drug_groups_sum
+    , drug, drug_rate, drug_amount, drug_stop, drug_start, drug_first
+  from drugcv9
+)
+, drugcv as
+(
+  select icustay_id
+  , min(starttime) as starttime
+  , max(endtime) as endtime
+  , drug_groups_sum
+  , drug_rate
+  , sum(drug_amount) as drug_amount
+  from drugcv10
+  group by icustay_id, drug_groups_sum, drug_rate
+)
+-- now assign this data to every hour of the patient's stay
+-- drug_amount for carevue is not accurate
+SELECT icustay_id
+  , starttime, endtime
+  , drug_rate, drug_amount
+from drugcv
+UNION
+SELECT icustay_id
+  , starttime, endtime
+  , drug_rate, drug_amount
+from drugmv
+order by icustay_id, starttime;
+
+-- --------------------------------------------------------
+-- Host:                         127.0.0.1
+-- Versión del servidor:         5.6.17 - MySQL Community Server (GPL)
+-- SO del servidor:              Win64
+-- HeidiSQL Versión:             9.1.0.4867
+-- --------------------------------------------------------
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+
+-- Volcando estructura para tabla ironfist_areslands.laravel_migrations
+CREATE TABLE IF NOT EXISTS `laravel_migrations` (
+  `bundle` varchar(50) COLLATE utf8_bin NOT NULL,
+  `name` varchar(200) COLLATE utf8_bin NOT NULL,
+  `batch` int(11) NOT NULL,
+  PRIMARY KEY (`bundle`,`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+-- La exportación de datos fue deseleccionada.
+/*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
+/*!40014 SET FOREIGN_KEY_CHECKS=IF(@OLD_FOREIGN_KEY_CHECKS IS NULL, 1, @OLD_FOREIGN_KEY_CHECKS) */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+
+-- complain if script is sourced in psql, rather than via CREATE EXTENSION
+\echo Use "CREATE EXTENSION pg_prttn_tools" to load this file. \quit
+
+
+-- Function: prttn_tools.create_child_table(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     BOOLEAN)
+
+CREATE OR REPLACE FUNCTION prttn_tools.create_child_table(
+        p_schema CHARACTER VARYING,
+        p_table CHARACTER VARYING,
+        p_child_schema CHARACTER VARYING,
+        p_child_table CHARACTER VARYING,
+        p_check_condition CHARACTER VARYING,
+        p_with_rule BOOLEAN)
+    RETURNS TEXT AS
+$body$
+DECLARE
+
+/*
+Создание дочерней таблицы
+
+p_schema            Схема родительской таблицы
+p_table             Имя родительской таблицы
+p_child_schema      Схема дочерней таблицы
+p_child_table       Имя дочерней таблицы
+p_check_condition   Условие для создания constraint на дочерней таблице
+p_with_rule         Создание rule для родительской таблицы с условием,
+                    заданным в p_check_condition
+*/
+
+    v_ddl_text CHARACTER VARYING;
+
+BEGIN
+
+    -- Создание дочерней таблицы
+
+    v_ddl_text := 'CREATE TABLE ' || p_child_schema || '.' || p_child_table ||
+        ' ( LIKE ' || p_schema || '.' || p_table || ' INCLUDING ALL )';
+    EXECUTE v_ddl_text;
+
+    v_ddl_text := 'ALTER TABLE ' || p_child_schema || '.' || p_child_table ||
+        ' INHERIT ' || p_schema || '.' || p_table;
+    EXECUTE v_ddl_text;
+
+    -- Создание CONSTRAINT для дочерней таблицы
+
+    IF p_check_condition IS NOT NULL THEN
+        v_ddl_text := 'ALTER TABLE ' ||
+            p_child_schema || '.' || p_child_table ||
+            ' ADD CONSTRAINT ' || p_child_table || '_check CHECK ' ||
+            p_check_condition;
+        EXECUTE v_ddl_text;
+
+        -- Создание правила для родительской таблицы
+
+        IF p_with_rule THEN
+            v_ddl_text := 'CREATE RULE route_' ||
+                p_child_schema || '_' || p_child_table || ' AS ' ||
+                ' ON INSERT TO ' || p_schema ||'.'|| p_table ||
+                ' WHERE ' || p_check_condition || ' DO INSTEAD INSERT INTO ' ||
+                p_child_schema || '.' || p_child_table || ' VALUES (new.*)';
+            EXECUTE v_ddl_text;
+        END IF;
+
+    END IF;
+
+    RETURN 'created';
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+ALTER FUNCTION prttn_tools.create_child_table(CHARACTER VARYING,
+    CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING,
+    BOOLEAN) OWNER TO postgres;
+
+
+-- Function: prttn_tools.drop_ins_trigger(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING)
+
+CREATE OR REPLACE FUNCTION prttn_tools.drop_ins_trigger(
+        p_schema CHARACTER VARYING,
+        p_table CHARACTER VARYING)
+    RETURNS TEXT AS
+$body$
+DECLARE
+
+/*
+Удаление триггера на вставку записей и триггерной функции, созданных
+функцией part_%_create_trigger()
+
+p_schema      Схема родительской таблицы
+p_table       Имя родительской таблицы
+*/
+
+    v_ddl_text CHARACTER VARYING;
+
+BEGIN
+
+    -- Удаление триггера
+    v_ddl_text := 'DROP TRIGGER ' || p_table || '_part_ins_tr ON ' ||
+        p_schema || '.' || p_table;
+    EXECUTE v_ddl_text;
+
+    -- Удаление триггерной функции
+    v_ddl_text := 'DROP FUNCTION IF EXISTS ' || p_schema || '.' || p_table ||
+        '_part_ins_tr()';
+    EXECUTE v_ddl_text;
+    v_ddl_text := 'DROP FUNCTION IF EXISTS ' || p_schema || '.' || p_table ||
+        '_part_ins_tr_ac()';
+    EXECUTE v_ddl_text;
+
+
+    RETURN 'ok';
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+ALTER FUNCTION prttn_tools.drop_ins_trigger(CHARACTER VARYING,
+    CHARACTER VARYING) OWNER TO postgres;
+
+
+-- Function: prttn_tools.part_list_check(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING)
+
+CREATE OR REPLACE FUNCTION prttn_tools.part_list_check(
+        p_schema CHARACTER VARYING,
+        p_table CHARACTER VARYING,
+        p_list_column CHARACTER VARYING,
+        p_list_value CHARACTER VARYING)
+    RETURNS table(
+        child_table CHARACTER VARYING,
+        child_table_status CHARACTER VARYING,
+        child_list CHARACTER VARYING
+    ) AS
+$body$
+DECLARE
+
+/*
+Проверка существования дочерней таблицы
+
+p_schema        Схема родительской таблицы
+p_table         Имя родительской таблицы
+p_list_column   Поле для секционирования по значениям
+p_list_value    Значение для вставки в поле p_list_column
+*/
+
+    v_count INTEGER;
+
+BEGIN
+
+    -- Формирование имени и параметров дочерней таблицы
+
+    child_table := p_table || '_' || p_list_value;
+    child_list := p_list_value;
+
+    -- Проверка существования дочерней таблицы
+
+    SELECT count(*) INTO v_count
+    FROM pg_catalog.pg_tables
+    WHERE schemaname = p_schema AND tablename = child_table;
+
+    IF v_count != 0 THEN
+        child_table_status := 'exist';
+    ELSE
+        child_table_status := 'noexist';
+    END IF;
+
+    -- Returns:
+    -- child_table          p_table_p_list_value
+    -- child_table_status   exist/noexist
+    -- child_list           p_list_value
+
+    RETURN NEXT;
+    RETURN;
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+ALTER FUNCTION prttn_tools.part_list_check(CHARACTER VARYING, CHARACTER VARYING,
+    CHARACTER VARYING, CHARACTER VARYING) OWNER TO postgres;
+
+
+-- Function: prttn_tools.part_list_add(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     BOOLEAN)
+
+CREATE OR REPLACE FUNCTION prttn_tools.part_list_add(
+        p_schema CHARACTER VARYING,
+        p_table CHARACTER VARYING,
+        p_list_column CHARACTER VARYING,
+        p_list_value CHARACTER VARYING,
+        p_with_rule BOOLEAN)
+    RETURNS table(
+        child_table CHARACTER VARYING,
+        child_table_status CHARACTER VARYING,
+        child_list CHARACTER VARYING
+    ) AS
+$body$
+DECLARE
+
+/*
+Создание дочерней таблицы
+
+p_schema        Схема родительской таблицы
+p_table         Имя родительской таблицы
+p_list_column   Поле для секционирования по значениям
+p_list_value    Значение для вставки в поле p_list_column
+p_with_rule     Создание rule для родительской таблицы с условием,
+                заданным в v_check_condition
+*/
+
+    v_count INTEGER;
+    v_check_condition CHARACTER VARYING;
+    v_ddl_text CHARACTER VARYING;
+
+BEGIN
+
+    -- Проверка существования поля p_schemaname.p_tablename.p_list_column
+    
+    SELECT count(*) INTO v_count
+    FROM information_schema.tables t
+    JOIN information_schema.columns c
+        ON t.table_catalog = c.table_catalog
+            AND t.table_schema = c.table_schema
+            AND t.table_name = c.table_name
+    WHERE t.table_catalog::name = current_database() AND
+        t.table_type = 'BASE TABLE' AND
+        t.table_schema = p_schema AND
+        t.table_name = p_table AND
+        c.column_name = p_list_column;
+
+    -- Выход c ошибкой если данные о поле или таблице не верны
+
+    IF v_count != 1 THEN
+        raise 'incorrect master table %', p_schema || '.' || p_table;
+    END IF;
+
+    -- Формирование имени и параметров дочерней таблицы
+
+    SELECT r.child_table, r.child_table_status, r.child_list
+        INTO child_table, child_table_status, child_list
+    FROM prttn_tools.part_list_check(p_schema, p_table, p_list_column,
+        p_list_value) r;
+
+    v_check_condition := '(' ||
+        p_list_column || ' = ' || quote_literal(p_list_value) || ')';
+
+    -- Создание таблицы если дочерняя таблица не существует
+
+    IF child_table_status = 'noexist' THEN
+
+        -- Создание дочерней таблицы
+
+        SELECT prttn_tools.create_child_table(p_schema, p_table,
+            p_schema, child_table, v_check_condition, p_with_rule)
+            INTO child_table_status;
+
+    END IF;
+
+    -- Returns:
+    -- child_table          p_table_p_list_value
+    -- child_table_status   exist/created
+    -- child_list           p_list_value
+
+    RETURN NEXT;
+    RETURN;
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+ALTER FUNCTION prttn_tools.part_list_add(CHARACTER VARYING, CHARACTER VARYING,
+    CHARACTER VARYING, CHARACTER VARYING, BOOLEAN) OWNER TO postgres;
+
+
+-- Function: prttn_tools.part_list_create_trigger(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     BOOLEAN)
+
+CREATE OR REPLACE FUNCTION prttn_tools.part_list_create_trigger(
+        p_schema CHARACTER VARYING,
+        p_table CHARACTER VARYING,
+        p_list_column CHARACTER VARYING,
+        p_autocreate BOOLEAN)
+    RETURNS TABLE(
+        trigger_function CHARACTER VARYING,
+        trigger_status CHARACTER VARYING
+    ) AS
+$body$
+DECLARE
+
+/*
+Создание триггера для включения секционирования
+
+p_schema        Схема родительской таблицы
+p_table         Имя родительской таблицы
+p_list_column   Поле для секционирования по значениям
+p_autocreate    Автоматическое/ручное создание секций
+*/
+
+    v_sql TEXT;
+
+BEGIN
+
+    trigger_function := p_schema || '.' || p_table || '_part_ins_tr';
+    IF p_autocreate THEN
+        trigger_function := trigger_function || '_ac';
+    END IF;
+
+    v_sql := 'CREATE OR REPLACE FUNCTION ' || trigger_function || '()
+    RETURNS TRIGGER AS
+$trigger$
+DECLARE
+    -- this function is automatically created
+    -- from prttn_tools.part_list_create_trigger
+    -- ' || now() || '
+
+    v_child_table CHARACTER VARYING;
+    v_child_table_status CHARACTER VARYING;
+BEGIN
+
+    -- Проверка существования дочерней таблицы
+    SELECT child_table, child_table_status
+        INTO v_child_table, v_child_table_status
+    FROM prttn_tools.part_list_check(
+            ' || quote_literal(p_schema) || ',
+            ' || quote_literal(p_table) || ',
+            ' || quote_literal(p_list_column) || ',
+            new.' || p_list_column || '::CHARACTER VARYING);';
+
+    IF p_autocreate THEN
+        v_sql := v_sql || '
+
+    -- Создание новой дочерней таблицы, если не существует
+    IF v_child_table_status = ''noexist'' THEN
+        SELECT child_table, child_table_status
+            INTO v_child_table, v_child_table_status
+        FROM prttn_tools.part_list_add(
+                ' || quote_literal(p_schema) || ',
+                ' || quote_literal(p_table) || ',
+                ' || quote_literal(p_list_column) || ',
+                new.' || p_list_column || '::CHARACTER VARYING,
+                FALSE);
+    END IF;';
+    END IF;
+
+    v_sql := v_sql || '
+
+    -- Вставка записи в дочернюю таблицу
+    IF v_child_table_status = ''exist'' OR v_child_table_status = ''created''
+    THEN
+        EXECUTE ''INSERT INTO ' || p_schema || '.'' || v_child_table ||
+            '' SELECT ( ('' || quote_literal(new) ||
+            '')::' || p_schema || '.' || p_table || ' ).*'';
+    ELSE
+        RAISE ''child table % not exist'', v_child_table;
+    END IF;
+
+    RETURN NULL;
+
+END;
+$trigger$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+CREATE TRIGGER ' || p_table || '_part_ins_tr
+    BEFORE INSERT
+    ON ' || p_schema || '.' || p_table || '
+    FOR EACH ROW
+    EXECUTE PROCEDURE ' || trigger_function || '();';
+
+    EXECUTE v_sql;
+    trigger_status := 'created';
+
+    RETURN NEXT;
+    RETURN;
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+ALTER FUNCTION prttn_tools.part_list_create_trigger(CHARACTER VARYING,
+    CHARACTER VARYING, CHARACTER VARYING, BOOLEAN) OWNER TO postgres;
+
+
+-- Function: prttn_tools.part_time_check(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     TIMESTAMP WITHOUT TIME ZONE)
+
+CREATE OR REPLACE FUNCTION prttn_tools.part_time_check(
+        p_schema CHARACTER VARYING,
+        p_table CHARACTER VARYING,
+        p_time_column CHARACTER VARYING,
+        p_time_range CHARACTER VARYING,
+        p_time_value TIMESTAMP WITHOUT TIME ZONE)
+    RETURNS TABLE(
+        child_table CHARACTER VARYING,
+        child_table_status CHARACTER VARYING,
+        child_time_from TIMESTAMP WITHOUT TIME ZONE,
+        child_time_to TIMESTAMP WITHOUT TIME ZONE
+    ) AS
+$body$
+DECLARE
+
+/*
+Проверка существования дочерней таблицы
+
+p_schema      Схема родительской таблицы
+p_table       Имя родительской таблицы
+p_time_column Поле для секционирования по интервалу времени
+p_time_range  Интервал для секционирования:
+              year, month, day, hour, minute
+p_time_value  Значение для вставки в поле p_time_column
+*/
+
+    v_count INTEGER;
+
+BEGIN
+
+    -- Формирование имени и параметров дочерней таблицы
+
+    child_table := p_table || '_';
+
+    CASE lower(p_time_range)
+        WHEN 'year' THEN
+            child_table := child_table || to_char(p_time_value, 'yyyy');
+            child_time_from := date_trunc('year', p_time_value);
+            child_time_to := date_trunc('year',
+                p_time_value + interval '1 year');
+        WHEN 'month' THEN
+            child_table := child_table || to_char(p_time_value, 'yyyymm');
+            child_time_from := date_trunc('month', p_time_value);
+            child_time_to := date_trunc('month',
+                p_time_value + interval '1 month');
+        WHEN 'day' THEN
+            child_table := child_table || to_char(p_time_value, 'yyyymmdd');
+            child_time_from := date_trunc('day', p_time_value);
+            child_time_to := date_trunc('day',
+                p_time_value + interval '1 day');
+        WHEN 'hour' THEN
+            child_table := child_table ||
+                to_char(p_time_value, 'yyyymmdd_hh24');
+            child_time_from := date_trunc('hour', p_time_value);
+            child_time_to := date_trunc('hour',
+                p_time_value + interval '1 hour');
+        WHEN 'minute' THEN
+            child_table := child_table ||
+                to_char(p_time_value, 'yyyymmdd_hh24mi');
+            child_time_from := date_trunc('minute', p_time_value);
+            child_time_to := date_trunc('minute',
+                p_time_value + interval '1 minute');
+        ELSE
+            RAISE 'incorrect variable p_time_range %s', p_time_range;
+    END CASE;
+
+    -- Проверка существования дочерней таблицы
+
+    SELECT count(*) INTO v_count
+    FROM pg_catalog.pg_tables
+    WHERE schemaname = p_schema AND tablename = child_table;
+
+    IF v_count != 0 THEN
+        child_table_status := 'exist';
+    ELSE
+        child_table_status := 'noexist';
+    END IF; 
+
+    -- Returns:
+    -- child_table        | p_table_p_time_value
+    -- child_table_status | exist/noexist
+    -- child_time_from    | Дата/время начала интервала
+    -- child_time_to      | Дата/время конца интервала
+
+    RETURN NEXT;
+    RETURN;
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+ALTER FUNCTION prttn_tools.part_time_check(CHARACTER VARYING, CHARACTER VARYING,
+    CHARACTER VARYING, CHARACTER VARYING, TIMESTAMP WITHOUT TIME ZONE)
+    OWNER TO postgres;
+
+
+-- Function: prttn_tools.part_time_add(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     TIMESTAMP WITHOUT TIME ZONE,
+--     BOOLEAN)
+
+CREATE OR REPLACE FUNCTION prttn_tools.part_time_add(
+        p_schema CHARACTER VARYING,
+        p_table CHARACTER VARYING,
+        p_time_column CHARACTER VARYING,
+        p_time_range CHARACTER VARYING,
+        p_time_value TIMESTAMP WITHOUT TIME ZONE,
+        p_with_rule BOOLEAN)
+    RETURNS TABLE(
+        child_table CHARACTER VARYING,
+        child_table_status CHARACTER VARYING,
+        child_time_from TIMESTAMP WITHOUT TIME ZONE,
+        child_time_to TIMESTAMP WITHOUT TIME ZONE
+    ) AS
+$body$
+DECLARE
+
+/*
+Создание дочерней таблицы
+
+p_schema        Схема родительской таблицы
+p_table         Имя родительской таблицы
+p_time_column   Поле для секционирования по интервалу времени
+p_time_range    Интервал для секционирования:
+                year, month, day, hour, minute
+p_time_value    Значение для вставки в поле p_time_column
+p_with_rule     Создание rule для родительской таблицы с условием,
+                заданным в v_check_condition
+*/
+
+    v_count INTEGER;
+    v_check_condition CHARACTER VARYING;
+    v_ddl_text CHARACTER VARYING;
+
+BEGIN
+
+    -- Проверка существования поля
+    -- p_schemaname.p_tablename.p_time_column(timestamp without time zone)
+    
+    SELECT count(*) INTO v_count
+    FROM information_schema.tables t
+    JOIN information_schema.columns c
+        ON t.table_catalog = c.table_catalog
+            AND t.table_schema = c.table_schema
+            AND t.table_name = c.table_name
+    WHERE t.table_catalog::name = current_database() AND
+        t.table_type = 'BASE TABLE' AND
+        t.table_schema = p_schema AND
+        t.table_name = p_table AND
+        c.column_name = p_time_column AND
+        c.data_type = 'timestamp without time zone';
+
+    -- Выход c ошибкой если данные о поле или таблице не верны
+
+    IF v_count != 1 THEN
+        RAISE 'incorrect master table %', p_schema || '.' || p_table;
+    END IF;
+
+    -- Формирование имени и параметров дочерней таблицы
+
+    SELECT r.child_table, r.child_table_status, r.child_time_from,
+        r.child_time_to
+        INTO child_table, child_table_status, child_time_from, child_time_to
+    FROM prttn_tools.part_time_check(p_schema, p_table, p_time_column,
+        p_time_range, p_time_value) r;
+
+    v_check_condition := '(' ||
+        p_time_column || ' >= ' || quote_literal(child_time_from) || ' AND ' ||
+        p_time_column || ' < ' || quote_literal(child_time_to) || ')';
+
+    -- Создание таблицы если дочерняя таблица не существует
+
+    IF child_table_status = 'noexist' THEN
+
+        -- Создание дочерней таблицы
+
+        SELECT prttn_tools.create_child_table(p_schema, p_table,
+            p_schema, child_table, v_check_condition, p_with_rule)
+            INTO child_table_status;
+
+    END IF;
+
+    -- Returns:
+    -- child_table          p_table_p_time_value
+    -- child_table_status   exist/created
+    -- child_time_from      Дата/время начала интервала
+    -- child_time_to        Дата/время конца интервала
+
+    RETURN NEXT;
+    RETURN;
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+ALTER FUNCTION prttn_tools.part_time_add(CHARACTER VARYING, CHARACTER VARYING,
+    CHARACTER VARYING, CHARACTER VARYING, TIMESTAMP WITHOUT TIME ZONE, BOOLEAN)
+    OWNER TO postgres;
+
+
+-- Function: prttn_tools.part_time_create_trigger(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     BOOLEAN)
+
+CREATE OR REPLACE FUNCTION prttn_tools.part_time_create_trigger(
+        p_schema CHARACTER VARYING,
+        p_table CHARACTER VARYING,
+        p_time_column CHARACTER VARYING,
+        p_time_range CHARACTER VARYING,
+        p_autocreate BOOLEAN)
+    RETURNS TABLE(
+        trigger_function CHARACTER VARYING,
+        trigger_status CHARACTER VARYING
+    ) AS
+$body$
+DECLARE
+
+/*
+Создание триггера для включения секционирования
+
+p_schema        Схема родительской таблицы
+p_table         Имя родительской таблицы
+p_time_column   Поле для секционирования по интервалу времени
+p_time_range    Интервал для секционирования:
+                year, month, day, hour, minute 
+p_autocreate    Автоматическое/ручное создание секций
+*/
+
+    v_sql TEXT;
+
+BEGIN
+
+    trigger_function := p_schema || '.' || p_table || '_part_ins_tr';
+    IF p_autocreate THEN
+        trigger_function := trigger_function || '_ac';
+    END IF;
+
+    v_sql := 'CREATE OR REPLACE FUNCTION ' || trigger_function || '()
+    RETURNS TRIGGER AS
+$trigger$
+DECLARE
+    -- this function is automatically created
+    -- from prttn_tools.part_time_create_trigger
+    -- ' || now() || '
+
+    v_child_table CHARACTER VARYING;
+    v_child_table_status CHARACTER VARYING;
+BEGIN
+
+    -- Проверка существования дочерней таблицы
+    SELECT child_table, child_table_status
+        INTO v_child_table, v_child_table_status
+    FROM prttn_tools.part_time_check(
+            ' || quote_literal(p_schema) || ',
+            ' || quote_literal(p_table) || ',
+            ' || quote_literal(p_time_column) || ',
+            ' || quote_literal(p_time_range) || ',
+            new.' || p_time_column || '::TIMESTAMP WITHOUT TIME ZONE);';
+
+    IF p_autocreate THEN
+        v_sql := v_sql || '
+
+    -- Создание новой дочерней таблицы, если не существует
+    IF v_child_table_status = ''noexist'' THEN
+        SELECT child_table, child_table_status
+            INTO v_child_table, v_child_table_status
+        FROM prttn_tools.part_time_add(
+                ' || quote_literal(p_schema) || ',
+                ' || quote_literal(p_table) || ',
+                ' || quote_literal(p_time_column) || ',
+                ' || quote_literal(p_time_range) || ',
+                new.' || p_time_column || '::TIMESTAMP WITHOUT TIME ZONE,
+                FALSE);
+    END IF;';
+    END IF;
+
+    v_sql := v_sql || '
+
+    -- Вставка записи в дочернюю таблицу
+    IF v_child_table_status = ''exist'' OR v_child_table_status = ''created''
+    THEN
+        EXECUTE ''INSERT INTO ' || p_schema || '.'' || v_child_table ||
+            '' SELECT ( ('' || quote_literal(new) ||
+            '')::' || p_schema || '.' || p_table || ' ).*'';
+    ELSE
+        RAISE ''child table % not exist'', v_child_table;
+    END IF;
+
+    RETURN NULL;
+
+END;
+$trigger$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+CREATE TRIGGER ' || p_table || '_part_ins_tr
+    BEFORE INSERT
+    ON ' || p_schema || '.' || p_table || '
+    FOR EACH ROW
+    EXECUTE PROCEDURE ' || trigger_function || '();';
+
+    EXECUTE v_sql;
+    trigger_status := 'created';
+
+    RETURN NEXT;
+    RETURN;
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+ALTER FUNCTION prttn_tools.part_time_create_trigger(CHARACTER VARYING,
+    CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING, BOOLEAN)
+    OWNER TO postgres;
+
+
+-- Function: prttn_tools.part_list_time_check(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     TIMESTAMP WITHOUT TIME ZONE)
+
+CREATE OR REPLACE FUNCTION prttn_tools.part_list_time_check(
+        p_schema CHARACTER VARYING,
+        p_table CHARACTER VARYING,
+        p_list_column CHARACTER VARYING,
+        p_list_value CHARACTER VARYING,
+        p_time_column CHARACTER VARYING,
+        p_time_range CHARACTER VARYING,
+        p_time_value TIMESTAMP WITHOUT TIME ZONE)
+    RETURNS TABLE(
+        child_table CHARACTER VARYING,
+        child_table_status CHARACTER VARYING,
+        child_list CHARACTER VARYING,
+        child_time_from TIMESTAMP WITHOUT TIME ZONE,
+        child_time_to TIMESTAMP WITHOUT TIME ZONE
+    ) AS
+$body$
+DECLARE
+
+/*
+Проверка существования дочерней таблицы
+
+p_schema        Схема родительской таблицы
+p_table         Имя родительской таблицы
+p_list_column   Поле для секционирования по значениям
+p_list_value    Значение для вставки в поле p_list_column
+p_time_column   Поле для секционирования по интервалу времени
+p_time_range    Интервал для секционирования:
+                year, month, day, hour, minute 
+p_time_value    Значение для вставки в поле p_time_column
+*/
+
+    v_count INTEGER;
+
+BEGIN
+
+    -- Формирование имени и параметров дочерней таблицы
+
+    child_table := p_table || '_' || p_list_value || '_';
+    child_list := p_list_value;
+
+    CASE lower(p_time_range)
+        WHEN 'year' THEN
+            child_table := child_table || to_char(p_time_value, 'yyyy');
+            child_time_from := date_trunc('year', p_time_value);
+            child_time_to := date_trunc('year',
+                p_time_value + interval '1 year');
+        WHEN 'month' THEN
+            child_table := child_table || to_char(p_time_value, 'yyyymm');
+            child_time_from := date_trunc('month', p_time_value);
+            child_time_to := date_trunc('month',
+                p_time_value + interval '1 month');
+        WHEN 'day' THEN
+            child_table := child_table || to_char(p_time_value, 'yyyymmdd');
+            child_time_from := date_trunc('day', p_time_value);
+            child_time_to := date_trunc('day',
+                p_time_value + interval '1 day');
+        WHEN 'hour' THEN
+            child_table := child_table ||
+                to_char(p_time_value, 'yyyymmdd_hh24');
+            child_time_from := date_trunc('hour', p_time_value);
+            child_time_to := date_trunc('hour',
+                p_time_value + interval '1 hour');
+        WHEN 'minute' THEN
+            child_table := child_table ||
+                to_char(p_time_value, 'yyyymmdd_hh24mi');
+            child_time_from := date_trunc('minute', p_time_value);
+            child_time_to := date_trunc('minute',
+                p_time_value + interval '1 minute');
+        ELSE
+            RAISE 'incorrect variable p_time_range %s', p_time_range;
+    END CASE;
+
+    -- Проверка существования дочерней таблицы
+
+    SELECT count(*) INTO v_count
+    FROM pg_catalog.pg_tables
+    WHERE schemaname = p_schema AND tablename = child_table;
+
+    IF v_count != 0 THEN
+        child_table_status := 'exist';
+    ELSE
+        child_table_status := 'noexist';
+    END IF;
+
+    -- Returns:
+    -- child_table          p_table_p_list_value_p_time_value
+    -- child_table_status   exist/noexist
+    -- child_list           p_list_value
+    -- child_time_from      Дата/время начала интервала
+    -- child_time_to        Дата/время конца интервала
+
+    RETURN NEXT;
+    RETURN;
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+    
+ALTER FUNCTION prttn_tools.part_list_time_check(CHARACTER VARYING,
+    CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING,
+    CHARACTER VARYING, TIMESTAMP WITHOUT TIME ZONE) OWNER TO postgres;
+
+
+-- Function: prttn_tools.part_list_time_add(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     TIMESTAMP WITHOUT TIME ZONE,
+--     BOOLEAN)
+
+CREATE OR REPLACE FUNCTION prttn_tools.part_list_time_add(
+        p_schema CHARACTER VARYING,
+        p_table CHARACTER VARYING,
+        p_list_column CHARACTER VARYING,
+        p_list_value CHARACTER VARYING,
+        p_time_column CHARACTER VARYING,
+        p_time_range CHARACTER VARYING,
+        p_time_value TIMESTAMP WITHOUT TIME ZONE,
+        p_with_rule BOOLEAN)
+    RETURNS TABLE(
+        child_table CHARACTER VARYING,
+        child_table_status CHARACTER VARYING,
+        child_list CHARACTER VARYING,
+        child_time_from TIMESTAMP WITHOUT TIME ZONE,
+        child_time_to TIMESTAMP WITHOUT TIME ZONE
+    ) AS
+$body$
+DECLARE
+
+/*
+Создание дочерней таблицы
+
+p_schema        Схема родительской таблицы
+p_table         Имя родительской таблицы
+p_list_column   Поле для секционирования по значениям
+p_list_value    Значение для вставки в поле p_list_column
+p_time_column   Поле для секционирования по интервалу времени
+p_time_range    Интервал для секционирования:
+                year, month, day, hour, minute 
+p_time_value    Значение для вставки в поле p_time_column
+p_with_rule     Создание rule для родительской таблицы с условием,
+                заданным в v_check_condition
+*/
+
+    v_count INTEGER;
+    v_check_condition CHARACTER VARYING;
+    v_ddl_text CHARACTER VARYING;
+
+BEGIN
+
+    -- Проверка существования полей:
+    -- p_schemaname.p_tablename.p_list_column
+    -- p_schemaname.p_tablename.p_time_column(timestamp without time zone)
+    
+    SELECT count(*) INTO v_count
+    FROM information_schema.tables t
+    JOIN information_schema.columns c
+        ON t.table_catalog = c.table_catalog
+            AND t.table_schema = c.table_schema
+            AND t.table_name = c.table_name
+    WHERE t.table_catalog::name = current_database() AND
+        t.table_type = 'BASE TABLE' AND
+        t.table_schema = p_schema AND
+        t.table_name = p_table AND
+        (c.column_name = p_list_column OR
+            (c.column_name = p_time_column AND
+                c.data_type = 'timestamp without time zone'
+            )
+        );
+
+    -- Выход c ошибкой если данные о поле или таблице не верны
+
+    IF v_count != 2 THEN
+        RAISE 'incorrect master table %', p_schema || '.' || p_table;
+    END IF;
+
+    -- Формирование имени и параметров дочерней таблицы
+
+    SELECT r.child_table, r.child_table_status, r.child_list, r.child_time_from,
+        r.child_time_to INTO child_table, child_table_status, child_list,
+            child_time_from, child_time_to
+    FROM prttn_tools.part_list_time_check(p_schema, p_table, p_list_column,
+        p_list_value, p_time_column, p_time_range, p_time_value) r;
+
+    v_check_condition := '(' ||
+        p_list_column || ' = ' || quote_literal(p_list_value) || ' AND ' ||
+        p_time_column || ' >= ' || quote_literal(child_time_from) || ' AND ' ||
+        p_time_column || ' < ' || quote_literal(child_time_to) || ')';
+
+    -- Создание таблицы если дочерняя таблица не существует
+
+    IF child_table_status = 'noexist' THEN
+
+        -- Создание child-таблицы
+
+        SELECT prttn_tools.create_child_table(p_schema, p_table,
+            p_schema, child_table, v_check_condition, p_with_rule)
+            INTO child_table_status;
+
+    END IF;
+
+    -- Returns:
+    -- child_table          p_table_p_list_value_p_time_value
+    -- child_table_status   exist/created
+    -- child_list           p_list_value
+    -- child_time_from      Дата/время начала интервала
+    -- child_time_to        Дата/время конца интервала
+
+    RETURN NEXT;
+    RETURN;
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+ALTER FUNCTION prttn_tools.part_list_time_add(CHARACTER VARYING,
+    CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING,
+    CHARACTER VARYING, TIMESTAMP WITHOUT TIME ZONE, BOOLEAN) OWNER TO postgres;
+
+
+-- Function: prttn_tools.part_list_time_create_trigger(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     BOOLEAN)
+
+CREATE OR REPLACE FUNCTION prttn_tools.part_list_time_create_trigger(
+        p_schema CHARACTER VARYING,
+        p_table CHARACTER VARYING,
+        p_list_column CHARACTER VARYING,
+        p_time_column CHARACTER VARYING,
+        p_time_range CHARACTER VARYING,
+        p_autocreate BOOLEAN)
+    RETURNS TABLE(
+        trigger_function CHARACTER VARYING,
+        trigger_status CHARACTER VARYING
+    ) AS
+$body$
+DECLARE
+
+/*
+Создание триггера для включения секционирования
+
+p_schema        Схема родительской таблицы
+p_table         Имя родительской таблицы
+p_list_column   Поле для секционирования по значениям
+p_time_column   Поле для секционирования по интервалу времени
+p_time_range    Интервал для секционирования:
+                year, month, day, hour, minute 
+p_autocreate    Автоматическое/ручное создание секций
+*/
+
+    v_sql TEXT;
+BEGIN
+
+    trigger_function := p_schema || '.' || p_table || '_part_ins_tr';
+
+    v_sql := 'CREATE OR REPLACE FUNCTION ' || trigger_function || '()
+    RETURNS TRIGGER AS
+$trigger$
+DECLARE
+    -- this function is automatically created
+    -- from prttn_tools.part_list_time_create_trigger
+    -- ' || now() || '
+
+    v_child_table CHARACTER VARYING;
+    v_child_table_status CHARACTER VARYING;
+BEGIN
+
+    -- Проверка существования дочерней таблицы
+    SELECT child_table, child_table_status
+        INTO v_child_table, v_child_table_status
+    FROM prttn_tools.part_list_time_check(
+            ' || quote_literal(p_schema) || ',
+            ' || quote_literal(p_table) || ',
+            ' || quote_literal(p_list_column) || ',
+            new.' || p_list_column || '::CHARACTER VARYING,
+            ' || quote_literal(p_time_column) || ',
+            ' || quote_literal(p_time_range) || ',
+            new.' || p_time_column || '::TIMESTAMP WITHOUT TIME ZONE);';
+
+    IF p_autocreate THEN
+        v_sql := v_sql || '
+
+    -- Создание новой дочерней таблицы, если не существует
+    IF v_child_table_status = ''noexist'' THEN
+        SELECT child_table, child_table_status
+            INTO v_child_table, v_child_table_status
+        FROM prttn_tools.part_list_time_add(
+                ' || quote_literal(p_schema) || ',
+                ' || quote_literal(p_table) || ',
+                ' || quote_literal(p_list_column) || ',
+                new.' || p_list_column || '::CHARACTER VARYING,
+                ' || quote_literal(p_time_column) || ',
+                ' || quote_literal(p_time_range) || ',
+                new.' || p_time_column || '::TIMESTAMP WITHOUT TIME ZONE,
+                FALSE);
+    END IF;';
+    END IF;
+
+    v_sql := v_sql || '
+
+    -- Вставка записи в дочернюю таблицу
+    IF v_child_table_status = ''exist'' OR v_child_table_status = ''created''
+    THEN
+        EXECUTE ''INSERT INTO ' || p_schema || '.'' || v_child_table ||
+            '' SELECT ( ('' || quote_literal(new) ||
+            '')::' || p_schema || '.' || p_table || ' ).*'';
+    ELSE
+        RAISE ''child table % not exist'', v_child_table;
+    END IF;
+
+    RETURN NULL;
+
+END;
+$trigger$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+CREATE TRIGGER ' || p_table || '_part_ins_tr
+    BEFORE INSERT
+    ON ' || p_schema || '.' || p_table || '
+    FOR EACH ROW
+    EXECUTE PROCEDURE ' || trigger_function || '();';
+
+    EXECUTE v_sql;
+    trigger_status := 'created';
+
+    RETURN NEXT;
+    RETURN;
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+ALTER FUNCTION prttn_tools.part_list_time_create_trigger(CHARACTER VARYING,
+    CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING,
+    BOOLEAN) OWNER TO postgres;
+
+
+-- Function: prttn_tools.part_merge(
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING,
+--     CHARACTER VARYING)
+
+CREATE OR REPLACE FUNCTION prttn_tools.part_merge(
+        p_parent_schema CHARACTER VARYING,
+        p_parent_table CHARACTER VARYING,
+        p_child_schema CHARACTER VARYING,
+        p_child_table CHARACTER VARYING)
+    RETURNS TEXT AS
+$body$
+DECLARE
+
+/*
+Слияние дочерней таблицы с родительской
+
+p_parent_schema     Схема родительской таблицы
+p_parent_table      Имя родительской таблицы
+p_child_schema      Схема дочерней таблицы
+p_child_table       Имя дочерней таблицы
+*/
+
+    v_count BIGINT;
+    v_sql_text CHARACTER VARYING;
+
+BEGIN
+
+    -- Проверка существования таблицы p_parent_schema.p_parent_table
+
+    SELECT count(*) INTO v_count
+    FROM information_schema.tables t1
+    WHERE t1.table_catalog::name = current_database()
+        AND t1.table_type = 'BASE TABLE'
+        AND t1.table_schema = p_parent_schema
+        AND t1.table_name = p_parent_table;
+
+    IF v_count != 1 THEN
+        RAISE 'parent table not found: %', p_parent_schema || '.' ||
+            p_parent_table;
+    END IF;
+
+    -- Проверка существования таблицы p_child_schema.p_child_table
+
+    SELECT count(*) INTO v_count
+    FROM information_schema.tables t1
+    WHERE t1.table_catalog::name = current_database()
+        AND t1.table_type = 'BASE TABLE'
+        AND t1.table_schema = p_child_schema
+        AND t1.table_name = p_child_table;
+
+    IF v_count != 1 THEN
+        RAISE 'child table not found: %', p_child_schema || '.' ||
+            p_child_table;
+    END IF;
+
+    -- Проверка совместимости таблиц
+
+    SELECT count(*) INTO v_count FROM (
+        SELECT c1.column_name, c1.data_type
+        FROM information_schema.tables t1
+        JOIN information_schema.columns c1
+            ON t1.table_catalog = c1.table_catalog
+                AND t1.table_schema = c1.table_schema
+                AND t1.table_name = c1.table_name
+        WHERE t1.table_catalog::name = current_database()
+            AND t1.table_type = 'BASE TABLE'
+            AND t1.table_schema = p_parent_schema
+            AND t1.table_name = p_parent_table
+        EXCEPT
+        SELECT c2.column_name, c2.data_type
+        FROM information_schema.tables t2
+        JOIN information_schema.columns c2
+            ON t2.table_catalog = c2.table_catalog
+                AND t2.table_schema = c2.table_schema
+                AND t2.table_name = c2.table_name
+        WHERE t2.table_catalog::name = current_database()
+            AND t2.table_type = 'BASE TABLE'
+            AND t2.table_schema = p_child_schema
+            AND t2.table_name = p_child_table
+    ) tt;
+    
+    IF v_count != 0 THEN
+        RAISE 'tables are not compatible: %', p_parent_schema || '.' ||
+            p_parent_table || ', ' || p_child_schema || '.' || p_child_table;
+    END IF;
+
+    -- Вставка данных в родительскую таблицу
+    v_sql_text := 'INSERT INTO ' || p_parent_schema || '.' || p_parent_table ||
+        ' SELECT * FROM ' || p_child_schema || '.' || p_child_table;
+    EXECUTE v_sql_text;
+
+    -- Удаление дочерней таблицы
+    v_sql_text := 'DROP TABLE ' || p_child_schema || '.' || p_child_table;
+    EXECUTE v_sql_text;
+
+    RETURN 'ok';
+
+END;
+$body$
+    LANGUAGE plpgsql VOLATILE
+    COST 100;
+
+ALTER FUNCTION prttn_tools.part_merge(CHARACTER VARYING, CHARACTER VARYING,
+    CHARACTER VARYING, CHARACTER VARYING) OWNER TO postgres;
+
+INSERT INTO customers (first_name, last_name) VALUES ('Nobita', 'Nobi');
+INSERT INTO customers (first_name, last_name) VALUES ('Takeshi', 'Goda');
+INSERT INTO customers (first_name, last_name) VALUES ('Suneo', 'Honekawa');
+INSERT INTO customers (first_name, last_name) VALUES ('Shizuka', 'Minamoto');
+
+-- collate4.test
+-- 
+-- execsql {
+--     CREATE TABLE collate4t3(a COLLATE NOCASE, b COLLATE TEXT);
+--     INSERT INTO collate4t3 VALUES( 'a', 'a' );
+--     INSERT INTO collate4t3 VALUES( 'b', 'b' );
+--     INSERT INTO collate4t3 VALUES( NULL, NULL );
+--     INSERT INTO collate4t3 VALUES( 'B', 'B' );
+--     INSERT INTO collate4t3 VALUES( 'A', 'A' );
+--     CREATE INDEX collate4i2 ON collate4t3(a COLLATE TEXT, b COLLATE NOCASE);
+-- }
+CREATE TABLE collate4t3(a COLLATE NOCASE, b COLLATE TEXT);
+INSERT INTO collate4t3 VALUES( 'a', 'a' );
+INSERT INTO collate4t3 VALUES( 'b', 'b' );
+INSERT INTO collate4t3 VALUES( NULL, NULL );
+INSERT INTO collate4t3 VALUES( 'B', 'B' );
+INSERT INTO collate4t3 VALUES( 'A', 'A' );
+CREATE INDEX collate4i2 ON collate4t3(a COLLATE TEXT, b COLLATE NOCASE);
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+
+-- Export de la structure de la base pour chacal
+CREATE DATABASE IF NOT EXISTS `chacal` /*!40100 DEFAULT CHARACTER SET utf8 */;
+USE `chacal`;
+
+-- Export de la structure de table chacal. items
+CREATE TABLE IF NOT EXISTS `items` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `category` varchar(255) NOT NULL DEFAULT '""',
+  `desc` text NOT NULL DEFAULT '""',
+  `notation` time NOT NULL DEFAULT '00:00:00',
+  `positionlat` double DEFAULT NULL,
+  `postionlong` double DEFAULT NULL,
+  `date` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Export de la structure de table chacal. what
+CREATE TABLE IF NOT EXISTS `what` (
+  `item_id` bigint(20) NOT NULL,
+  `what` varchar(255) NOT NULL,
+  `how` varchar(255) NOT NULL,
+  KEY `FK_what_items` (`item_id`),
+  CONSTRAINT `FK_what_items` FOREIGN KEY (`item_id`) REFERENCES `items` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+/*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
+/*!40014 SET FOREIGN_KEY_CHECKS=IF(@OLD_FOREIGN_KEY_CHECKS IS NULL, 1, @OLD_FOREIGN_KEY_CHECKS) */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+
+
+USE [VipunenTK]
+GO
+/****** Object:  Table [dbo].[d_erikoislaakarikoulutus]    Script Date: 14.9.2017 13:55:52 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[d_erikoislaakarikoulutus]') AND type in (N'U'))
+BEGIN
+CREATE TABLE [dbo].[d_erikoislaakarikoulutus](
+	[id] [int] NOT NULL,
+	[alkaa] [date] NOT NULL,
+	[paattyy] [date] NOT NULL,
+	[erikoislaakarikoulutus_koodi] [nvarchar](2) NOT NULL,
+	[erikoislaakarikoulutus] [nvarchar](200) NULL,
+	[erikoislaakarikoulutus_SV] [nvarchar](200) NULL,
+	[erikoislaakarikoulutus_EN] [nvarchar](200) NULL,
+	[jarjestys] [nvarchar](50) NULL,
+	[tietolahde] [nvarchar](50) NULL
+) ON [PRIMARY]
+END
+GO
+INSERT [dbo].[d_erikoislaakarikoulutus] ([id], [alkaa], [paattyy], [erikoislaakarikoulutus_koodi], [erikoislaakarikoulutus], [erikoislaakarikoulutus_SV], [erikoislaakarikoulutus_EN], [jarjestys], [tietolahde]) VALUES (-2, CAST(N'1900-01-01' AS Date), CAST(N'9999-01-01' AS Date), N'-2', N'Virhetilanne', N'Feltillstånd', N'Error occurred', N'99999', N'Manuaalinen')
+GO
+INSERT [dbo].[d_erikoislaakarikoulutus] ([id], [alkaa], [paattyy], [erikoislaakarikoulutus_koodi], [erikoislaakarikoulutus], [erikoislaakarikoulutus_SV], [erikoislaakarikoulutus_EN], [jarjestys], [tietolahde]) VALUES (-1, CAST(N'1900-01-01' AS Date), CAST(N'9999-01-01' AS Date), N'-1', N'Tuntematon', N'Information saknas', N'Missing data', N'99998', N'Manuaalinen')
+GO
+INSERT [dbo].[d_erikoislaakarikoulutus] ([id], [alkaa], [paattyy], [erikoislaakarikoulutus_koodi], [erikoislaakarikoulutus], [erikoislaakarikoulutus_SV], [erikoislaakarikoulutus_EN], [jarjestys], [tietolahde]) VALUES (1, CAST(N'1900-01-01' AS Date), CAST(N'9999-01-01' AS Date), N'1', N'Erikoislääkärit', N'*SV*Erikoislääkärit', N'*EN*Erikoislääkärit', N'1', N'Tilastokeskus')
+GO
+INSERT [dbo].[d_erikoislaakarikoulutus] ([id], [alkaa], [paattyy], [erikoislaakarikoulutus_koodi], [erikoislaakarikoulutus], [erikoislaakarikoulutus_SV], [erikoislaakarikoulutus_EN], [jarjestys], [tietolahde]) VALUES (2, CAST(N'1900-01-01' AS Date), CAST(N'9999-01-01' AS Date), N'2', N'Erikoishammaslääkärit', N'*SV*Erikoishammaslääkärit', N'*EN*Erikoishammaslääkärit', N'2', N'Tilastokeskus')
+GO
+
+USE [ANTERO]
+SET DEFINE OFF;
+ALTER TABLE AFW_04_CONTX_ETEND ADD (
+  CONSTRAINT AFW_04_CONTX_ETEND_FK1 
+  FOREIGN KEY (REF_CONTX) 
+  REFERENCES AFW_04_CONTX (REF_FIL_ARIAN)
+  ON DELETE CASCADE
+  ENABLE VALIDATE)
+/
+
+-- MySQL dump 10.13  Distrib 5.5.49, for debian-linux-gnu (x86_64)
+--
+-- Host: localhost    Database: warmup
+-- ------------------------------------------------------
+-- Server version	5.5.49-0ubuntu0.14.04.1
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `add_member`
+--
+
+DROP TABLE IF EXISTS `add_member`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `add_member` (
+  `POWON_id` int(11) NOT NULL,
+  `group_id` int(11) NOT NULL,
+  PRIMARY KEY (`POWON_id`,`group_id`),
+  KEY `group_id_idx` (`group_id`),
+  CONSTRAINT `group_id` FOREIGN KEY (`group_id`) REFERENCES `group` (`group_id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `POWON_id` FOREIGN KEY (`POWON_id`) REFERENCES `member` (`POWON_id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `add_member`
+--
+
+LOCK TABLES `add_member` WRITE;
+/*!40000 ALTER TABLE `add_member` DISABLE KEYS */;
+/*!40000 ALTER TABLE `add_member` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `group`
+--
+
+DROP TABLE IF EXISTS `group`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `group` (
+  `group_id` int(11) NOT NULL AUTO_INCREMENT,
+  `group_name` varchar(45) NOT NULL,
+  `POWON_id` int(11) NOT NULL,
+  PRIMARY KEY (`group_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `group`
+--
+
+LOCK TABLES `group` WRITE;
+/*!40000 ALTER TABLE `group` DISABLE KEYS */;
+/*!40000 ALTER TABLE `group` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `interest`
+--
+
+DROP TABLE IF EXISTS `interest`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `interest` (
+  `interest_id` int(11) NOT NULL AUTO_INCREMENT,
+  `interest_name` varchar(45) NOT NULL,
+  PRIMARY KEY (`interest_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `interest`
+--
+
+LOCK TABLES `interest` WRITE;
+/*!40000 ALTER TABLE `interest` DISABLE KEYS */;
+/*!40000 ALTER TABLE `interest` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `member`
+--
+
+DROP TABLE IF EXISTS `member`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `member` (
+  `POWON_id` int(11) NOT NULL AUTO_INCREMENT,
+  `firstname` varchar(45) COLLATE utf8_unicode_ci NOT NULL,
+  `lastname` varchar(45) COLLATE utf8_unicode_ci NOT NULL,
+  `password` varchar(45) COLLATE utf8_unicode_ci NOT NULL,
+  `user_name` varchar(45) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `address` varchar(45) COLLATE utf8_unicode_ci NOT NULL,
+  `dob` year(4) NOT NULL,
+  `city` varchar(45) COLLATE utf8_unicode_ci DEFAULT NULL,
+  `email` varchar(30) COLLATE utf8_unicode_ci NOT NULL,
+  `member_status` tinyint(1) DEFAULT '0',
+  `fee_membership` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`POWON_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `member`
+--
+
+LOCK TABLES `member` WRITE;
+/*!40000 ALTER TABLE `member` DISABLE KEYS */;
+/*!40000 ALTER TABLE `member` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `member_interest`
+--
+
+DROP TABLE IF EXISTS `member_interest`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `member_interest` (
+  `POWON_id` int(11) NOT NULL,
+  `interest_id` int(11) NOT NULL,
+  PRIMARY KEY (`POWON_id`,`interest_id`),
+  KEY `interest_id_idx` (`interest_id`),
+  CONSTRAINT `member_interest_ibfk_1` FOREIGN KEY (`POWON_id`) REFERENCES `member` (`POWON_id`) ON DELETE NO ACTION ON UPDATE NO ACTION,
+  CONSTRAINT `member_interest_ibfk_2` FOREIGN KEY (`interest_id`) REFERENCES `interest` (`interest_id`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `member_interest`
+--
+
+LOCK TABLES `member_interest` WRITE;
+/*!40000 ALTER TABLE `member_interest` DISABLE KEYS */;
+/*!40000 ALTER TABLE `member_interest` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `name`
+--
+
+DROP TABLE IF EXISTS `name`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `name` (
+  `id` int(6) unsigned NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `name`
+--
+
+LOCK TABLES `name` WRITE;
+/*!40000 ALTER TABLE `name` DISABLE KEYS */;
+/*!40000 ALTER TABLE `name` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2016-07-13 22:32:20
+
+INSERT INTO customers(id, name)
+VALUES (1, 'Jane Woods');
+INSERT INTO customers(id, name)
+VALUES (2, 'Michael Li');
+INSERT INTO customers(id, name)
+VALUES (3, 'Heidi Hasselbach');
+INSERT INTO customers(id, name)
+VALUES (4, 'Rahul Pour');
+
+SET DEFINE OFF;
+ALTER TABLE AFW_13_PAGE_ITEM ADD (
+  CONSTRAINT AFW_13_PAGE_ITEM_FK2 
+  FOREIGN KEY (REF_MESG_AIDE) 
+  REFERENCES AFW_01_MESG (SEQNC)
+  ENABLE VALIDATE)
+/
+
+use SEPSLoader
+go
+
+-- Statement for schema creation
+DECLARE @sql NVARCHAR(MAX)
+SET @sql ='CREATE SCHEMA StackExchange AUTHORIZATION [dbo]'
+
+IF NOT EXISTS(SELECT name FROM sys.schemas WHERE name = 'StackExchange')
+begin
+	EXEC sp_executesql @sql;	
+end
+
+-- NOTE: StackExchange is replaced by the name of the site
+
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'StackExchange.[Badges]') AND type in (N'U'))
+DROP TABLE StackExchange.[Badges]
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'StackExchange.[Comments]') AND type in (N'U'))
+DROP TABLE StackExchange.[Comments]
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'StackExchange.[Posts]') AND type in (N'U'))
+DROP TABLE StackExchange.[Posts]
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'StackExchange.[PostTags]') AND type in (N'U'))
+DROP TABLE StackExchange.[PostTags]
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'StackExchange.[PostTypes]') AND type in (N'U'))
+DROP TABLE StackExchange.[PostTypes]
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'StackExchange.[Users]') AND type in (N'U'))
+DROP TABLE StackExchange.[Users]
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'StackExchange.[Votes]') AND type in (N'U'))
+DROP TABLE StackExchange.[Votes]
+IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'StackExchange.[VoteTypes]') AND type in (N'U'))
+DROP TABLE StackExchange.[VoteTypes]
+IF EXISTS (SELECT * FROM sys.objects WHERE OBJECT_ID = OBJECT_ID(N'StackExchange.[PostLinks]') AND type IN (N'U'))
+DROP TABLE StackExchange.[PostLinks]
+IF EXISTS (SELECT * FROM sys.objects WHERE OBJECT_ID = OBJECT_ID(N'StackExchange.[LinkTypes]') AND type IN (N'U'))
+DROP TABLE StackExchange.[LinkTypes]
+
+SET ansi_nulls  ON
+SET quoted_identifier  ON
+SET ansi_padding  ON
+
+CREATE TABLE StackExchange.[LinkTypes] (
+  Id INT NOT NULL,
+  [Type] VARCHAR(40) NOT NULL,
+  CONSTRAINT PK_LinkTypes PRIMARY KEY CLUSTERED (Id ASC) 
+);
+
+CREATE TABLE StackExchange.[VoteTypes] (
+  [Id]   [INT]    NOT NULL,
+  [Name] [VARCHAR](40)    NOT NULL
+  , CONSTRAINT [PK__VoteType] PRIMARY KEY CLUSTERED ( [Id] ASC ) ON [PRIMARY]
+  )ON [PRIMARY]
+
+SET ansi_nulls  ON
+SET quoted_identifier  ON
+
+CREATE TABLE StackExchange.[PostTypes] (
+  [Id]   [INT]    NOT NULL,
+  [Type] [NVARCHAR](10)    NOT NULL
+  , CONSTRAINT [PK_PostTypes] PRIMARY KEY CLUSTERED ( [Id] ASC ) ON [PRIMARY]
+  ) ON [PRIMARY]
+
+IF 0 = 1--SPLIT
+  BEGIN
+	SET ansi_nulls  ON
+	SET quoted_identifier  ON
+
+	CREATE TABLE StackExchange.[PostTags] (
+	  [PostId] [INT]    NOT NULL,
+	  [Tag]    [NVARCHAR](50)    NOT NULL
+	  , CONSTRAINT [PK_PostTags_1] PRIMARY KEY CLUSTERED ( [PostId] ASC,[Tag] ASC ) ON [PRIMARY]
+	  ) ON [PRIMARY]
+  
+  END
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(1, N'AcceptedByOriginator')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(2, N'UpMod')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(3, N'DownMod')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(4, N'Offensive')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(5, N'Favorite')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(6, N'Close')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(7, N'Reopen')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(8, N'BountyStart')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(9, N'BountyClose')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(10,N'Deletion')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(11,N'Undeletion')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(12,N'Spam')
+INSERT StackExchange.[VoteTypes] ([Id], [Name]) VALUES(13,N'InformModerator')
+INSERT StackExchange.[PostTypes] ([Id], [Type]) VALUES(1, N'Question') 
+INSERT StackExchange.[PostTypes] ([Id], [Type]) VALUES(2, N'Answer') 
+INSERT StackExchange.[LinkTypes] ([Id], [Type]) VALUES(1, N'Linked')
+INSERT StackExchange.[LinkTypes] ([Id], [Type]) VALUES(3, N'Duplicate')
+
+IF 0 = 1--FULLTEXT
+  BEGIN
+	IF  EXISTS (SELECT * FROM sys.fulltext_indexes fti WHERE fti.object_id = OBJECT_ID(N'StackExchange.[Posts]'))
+	ALTER FULLTEXT INDEX ON StackExchange.[Posts] DISABLE
+	IF  EXISTS (SELECT * FROM sys.fulltext_indexes fti WHERE fti.object_id = OBJECT_ID(N'StackExchange.[Posts]'))
+	DROP FULLTEXT INDEX ON StackExchange.[Posts]
+	IF  EXISTS (SELECT * FROM sysfulltextcatalogs ftc WHERE ftc.name = N'PostFullText')
+	DROP FULLTEXT CATALOG [PostFullText]
+	CREATE FULLTEXT CATALOG [PostFullText]WITH ACCENT_SENSITIVITY = ON
+	AUTHORIZATION dbo
+  END
+
+
+
+SET ansi_padding  OFF
+SET ansi_nulls  ON
+SET quoted_identifier  ON
+
+CREATE TABLE StackExchange.[Votes] (
+  [Id]           [INT]    NOT NULL,
+  [PostId]       [INT]    NOT NULL,
+  [UserId]       [INT]    NULL,
+  [BountyAmount] [INT]    NULL,
+  [VoteTypeId]   [INT]    NOT NULL,
+  [CreationDate] [DATETIME]    NOT NULL
+  , CONSTRAINT [PK_Votes] PRIMARY KEY CLUSTERED ( [Id] ASC ) ON [PRIMARY]
+  ) ON [PRIMARY]
+
+IF 0 = 1-- INDICES
+  BEGIN
+    CREATE NONCLUSTERED INDEX [IX_Votes_Id_PostId] ON StackExchange.[Votes] (
+          [Id] ASC,
+          [PostId] ASC)
+    ON [PRIMARY]
+
+    CREATE NONCLUSTERED INDEX [IX_Votes_VoteTypeId] ON StackExchange.[Votes] (
+          [VoteTypeId] ASC)
+    ON [PRIMARY]
+  END
+
+SET ansi_nulls  ON
+SET quoted_identifier  ON
+
+CREATE TABLE StackExchange.[Users] (
+  [Id]             [INT]    NOT NULL,
+  [AboutMe]        [NVARCHAR](MAX)    NULL,
+  [Age]            [INT]    NULL,
+  [CreationDate]   [DATETIME]    NOT NULL,
+  [DisplayName]    [NVARCHAR](40)    NOT NULL,
+  [DownVotes]      [INT]    NOT NULL,
+  [EmailHash]      [NVARCHAR](40)    NULL,
+  [LastAccessDate] [DATETIME]    NOT NULL,
+  [Location]       [NVARCHAR](100)    NULL,
+  [Reputation]     [INT]    NOT NULL,
+  [UpVotes]        [INT]    NOT NULL,
+  [Views]          [INT]    NOT NULL,
+  [WebsiteUrl]     [NVARCHAR](200)    NULL,
+  [AccountId]		[INT] NULL
+  , CONSTRAINT [PK_Users] PRIMARY KEY CLUSTERED ( [Id] ASC ) ON [PRIMARY]
+  ) ON [PRIMARY]
+
+IF 0 = 1-- INDICES
+  BEGIN
+    CREATE NONCLUSTERED INDEX [IX_Users_DisplayName] ON StackExchange.[Users] (
+          [DisplayName] ASC)
+    ON [PRIMARY]
+  END
+
+
+SET ansi_nulls  ON
+SET quoted_identifier  ON
+
+CREATE TABLE StackExchange.[Posts] (
+  [Id]                    [INT]    NOT NULL,
+  [AcceptedAnswerId]      [INT]    NULL,
+  [AnswerCount]           [INT]    NULL,
+  [Body]                  [NTEXT]    NOT NULL,
+  [ClosedDate]            [DATETIME]    NULL,
+  [CommentCount]          [INT]    NULL,
+  [CommunityOwnedDate]    [DATETIME]    NULL,
+  [CreationDate]          [DATETIME]    NOT NULL,
+  [FavoriteCount]         [INT]    NULL,
+  [LastActivityDate]      [DATETIME]    NOT NULL,
+  [LastEditDate]          [DATETIME]    NULL,
+  [LastEditorDisplayName] [NVARCHAR](40)    NULL,
+  [LastEditorUserId]      [INT]    NULL,
+  [OwnerUserId]           [INT]    NULL,
+  [ParentId]              [INT]    NULL,
+  [PostTypeId]            [INT]    NOT NULL,
+  [Score]                 [INT]    NOT NULL,
+  [Tags]                  [NVARCHAR](150)    NULL,
+  [Title]                 [NVARCHAR](250)    NULL,
+  [ViewCount]             [INT]    NOT NULL
+  , CONSTRAINT [PK_Posts] PRIMARY KEY CLUSTERED ( [Id] ASC ) ON [PRIMARY]
+  -- INDICES ,CONSTRAINT [IX_Posts_Id_AcceptedAnswerId] UNIQUE NONCLUSTERED ([Id] ASC,[AcceptedAnswerId] ASC ) ON [PRIMARY],
+  -- INDICES CONSTRAINT [IX_Posts_Id_OwnerUserId] UNIQUE NONCLUSTERED ([Id] ASC,[OwnerUserId] ASC ) ON [PRIMARY],
+  -- INDICES CONSTRAINT [IX_Posts_Id_ParentId] UNIQUE NONCLUSTERED ([Id] ASC,[ParentId] ASC ) ON [PRIMARY]
+  )ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+IF 0 = 1-- INDICES
+  BEGIN
+    CREATE NONCLUSTERED INDEX [IX_Posts_Id_PostTypeId] ON StackExchange.[Posts] (
+          [Id] ASC,
+          [PostTypeId] ASC)
+    ON [PRIMARY]
+
+    CREATE NONCLUSTERED INDEX [IX_Posts_PostType] ON StackExchange.[Posts] (
+          [PostTypeId] ASC)
+    ON [PRIMARY]
+  END
+
+IF 0 = 1--FULLTEXT
+  BEGIN
+	EXEC dbo.Sp_fulltext_table
+	  @tabname = N'StackExchange.[Posts]' ,
+	  @action = N'create' ,
+	  @keyname = N'PK_Posts' ,
+	  @ftcat = N'PostFullText'
+
+	DECLARE  @lcid INT
+
+	SELECT @lcid = lcid
+	FROM   MASTER.dbo.syslanguages
+	WHERE  alias = N'English'
+
+	EXEC dbo.Sp_fulltext_column
+	  @tabname = N'StackExchange.[Posts]' ,
+	  @colname = N'Body' ,
+	  @action = N'add' ,
+	  @language = @lcid
+
+	SELECT @lcid = lcid
+	FROM   MASTER.dbo.syslanguages
+	WHERE  alias = N'English'
+
+	EXEC dbo.Sp_fulltext_column
+	  @tabname = N'StackExchange.[Posts]' ,
+	  @colname = N'Title' ,
+	  @action = N'add' ,
+	  @language = @lcid
+
+	EXEC dbo.Sp_fulltext_table
+	  @tabname = N'StackExchange.[Posts]' ,
+	  @action = N'start_change_tracking'
+
+	EXEC dbo.Sp_fulltext_table
+	  @tabname = N'StackExchange.[Posts]' ,
+	  @action = N'start_background_updateindex'
+
+  END
+
+SET ansi_nulls  ON
+SET quoted_identifier  ON
+
+CREATE TABLE StackExchange.[Comments] (
+  [Id]           [INT]    NOT NULL,
+  [CreationDate] [DATETIME]    NOT NULL,
+  [PostId]       [INT]    NOT NULL,
+  [Score]        [INT]    NULL,
+  [Text]         [NVARCHAR](700)    NOT NULL,
+  [UserId]       [INT]    NULL
+  , CONSTRAINT [PK_Comments] PRIMARY KEY CLUSTERED ( [Id] ASC ) ON [PRIMARY]
+  ) ON [PRIMARY]
+
+IF 0 = 1-- INDICES
+  BEGIN
+    CREATE NONCLUSTERED INDEX [IX_Comments_Id_PostId] ON StackExchange.[Comments] (
+          [Id] ASC,
+          [PostId] ASC)
+    ON [PRIMARY]
+
+    CREATE NONCLUSTERED INDEX [IX_Comments_Id_UserId] ON StackExchange.[Comments] (
+          [Id] ASC,
+          [UserId] ASC)
+    ON [PRIMARY]
+  END
+
+SET ansi_nulls  ON
+SET quoted_identifier  ON
+
+CREATE TABLE StackExchange.[Badges] (
+  [Id]     [INT]    NOT NULL,
+  [Name]   [NVARCHAR](40)    NOT NULL,
+  [UserId] [INT]    NOT NULL,
+  [Date]   [DATETIME]    NOT NULL
+  , CONSTRAINT [PK_Badges] PRIMARY KEY CLUSTERED ( [Id] ASC ) ON [PRIMARY]
+  ) ON [PRIMARY]
+
+CREATE TABLE StackExchange.[PostLinks] (
+  Id INT NOT NULL,
+  CreationDate DATETIME NOT NULL,
+  PostId INT NOT NULL,
+  RelatedPostId INT NOT NULL,
+  LinkTypeId TINYINT NOT NULL,
+  CONSTRAINT [PK_PostLinks] PRIMARY KEY CLUSTERED ([Id] ASC)
+) 
+
+IF 0 = 1-- INDICES
+  BEGIN
+    CREATE NONCLUSTERED INDEX [IX_Badges_Id_UserId] ON StackExchange.[Badges] (
+          [Id] ASC,
+          [UserId] ASC)
+    ON [PRIMARY]
+  END
+
+
+-- Copyright (C) 2014 MariaDB Ab.
+--
+-- This program is free software; you can redistribute it and/or modify
+-- it under the terms of the GNU General Public License as published by
+-- the Free Software Foundation; version 2 of the License.
+--
+-- This program is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-- GNU General Public License for more details.
+--
+-- You should have received a copy of the GNU General Public License
+-- along with this program; if not, write to the Free Software
+-- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+
+# This part creates stored procedures required by the OpenGIS standards.
+# script is prepared to be run with the --bootstrap server option
+
+SET sql_mode='';
+
+
+
+DROP PROCEDURE IF EXISTS AddGeometryColumn;
+DROP PROCEDURE IF EXISTS DropGeometryColumn;
+
+CREATE PROCEDURE AddGeometryColumn(catalog varchar(64), t_schema varchar(64),
+   t_name varchar(64), geometry_column varchar(64), t_srid int)
+begin
+  set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' ADD ', geometry_column,' GEOMETRY REF_SYSTEM_ID=', t_srid); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end ;
+
+CREATE PROCEDURE DropGeometryColumn(catalog varchar(64), t_schema varchar(64),
+   t_name varchar(64), geometry_column varchar(64))
+begin
+  set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' DROP ', geometry_column); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end ;
+
+
+
+
+-- 创建T_Good表
+CREATE TABLE IF NOT EXISTS T_Good
+(
+goodId INTEGER PRIMARY KEY NOT NULL,
+good TEXT,
+"createAt" TEXT DEFAULT (datetime('now', 'localtime'))
+);
+

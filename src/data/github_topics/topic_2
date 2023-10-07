@@ -1,0 +1,2176 @@
+answer = sum [1..100] ^ 2 - foldl (\x y -> y^2 + x) 0 [1..100]
+
+{-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE TypeOperators #-}
+
+module DirectoryAPI.API
+  ( directoryAPIProxy
+  , DirectoryAPI
+  ) where
+
+import Servant
+
+import AuthAPI.API (AuthToken)
+import Models (File, Node, NodeId)
+
+type DirectoryAPI = "ls" :> -- List all files
+                    AuthToken :>
+                    Get '[JSON] [File] -- Listing of all files
+
+               :<|> "whereis" :> -- Lookup the node for a given file path
+                    AuthToken :>
+                    ReqBody '[JSON] FilePath :> -- Path of file being looked up
+                    Post '[JSON] Node -- Node where the file is kept
+
+               :<|> "roundRobinNode" :> -- Next node to use as a file primary
+                    AuthToken :>
+                    ReqBody '[JSON] FilePath :> -- Path of file that will be written
+                    Get '[JSON] Node -- Primary node of the file being stored
+
+               :<|> "registerFileServer" :> -- Register a node with the directory service
+                    ReqBody '[JSON] Int :> -- Port file server node is running on
+                    Post '[JSON] NodeId -- Id of the newly created node record
+
+directoryAPIProxy :: Proxy DirectoryAPI
+directoryAPIProxy = Proxy
+
+module BlocVoting.Tally.Resolution where
+
+import qualified Data.ByteString as BS
+
+data Resolution = Resolution {
+    rCategories :: Int
+  , rEndTimestamp :: Int
+  , rName :: BS.ByteString
+  , rUrl :: BS.ByteString
+  , rVotesFor :: Integer
+  , rVotesTotal :: Integer
+  , rResolved :: Bool
+}
+  deriving (Show, Eq)
+
+
+updateResolution :: Resolution -> Integer -> Integer -> Resolution
+updateResolution (Resolution cats endT name url for total resolved) newForVotes newTotalVotes =
+    Resolution cats endT name url (for +  newForVotes) (total + newTotalVotes) resolved
+
+{-# LANGUAGE CPP #-}
+module Database.Orville.PostgreSQL.Plan.Explanation
+  ( Explanation
+  , noExplanation
+  , explainStep
+  , explanationSteps
+  ) where
+
+newtype Explanation =
+  Explanation ([String] -> [String])
+
+#if MIN_VERSION_base(4,11,0)
+instance Semigroup Explanation where
+  (<>) = appendExplanation
+#endif
+
+instance Monoid Explanation where
+  mempty = noExplanation
+  mappend = appendExplanation
+
+appendExplanation :: Explanation -> Explanation -> Explanation
+appendExplanation (Explanation front) (Explanation back) =
+  Explanation (front . back)
+
+noExplanation :: Explanation
+noExplanation =
+  Explanation id
+
+explainStep :: String -> Explanation
+explainStep str =
+  Explanation (str:)
+
+explanationSteps :: Explanation -> [String]
+explanationSteps (Explanation prependTo) =
+  prependTo []
+
+import Data.List (permutations, sort)
+
+solve :: String
+solve = (sort $ permutations "0123456789") !! 999999
+
+main = putStrLn $ solve
+
+module Lesson08 where
+
+-- Now let's have some real fun: a two player, online five card stud game,
+-- with a full betting system. The betting system is actually the biggest
+-- addition versus what we've done previously, so most of our attention
+-- will be focused on that. Most of the other code will be very similar
+-- to what we had in lesson 7.
+
+import Helper
+import Helper.Multiplayer
+import Helper.Pretty
+import Helper.Winning
+import System.Random.Shuffle
+import Data.List
+import Safe
+
+-- We're going to want to keep track of multiple information per player.
+-- A common way to do that is to create a record data type, where each
+-- piece of data has its own name. We'll want to have the player and
+-- how much money he/she has.
+data PokerPlayer = PokerPlayer
+    { player :: Player
+    , chips :: Int
+    , cards :: [Card]
+    , hand :: PokerHand
+    }
+
+data Action = Call | Raise Int | Fold
+
+askAction p allowedRaise = do
+    str <- askPlayer (player p) "call, raise, or fold?"
+    case str of
+        "call" -> return Call
+        "raise" ->  askRaise p allowedRaise
+        "fold" -> return Fold
+        _ -> do
+            tellPlayer (player p) "That was not a valid answer"
+            askAction p allowedRaise
+
+askRaise p allowedRaise = do
+    str <- askPlayer (player p) ("Enter amount to raise, up to " ++ show allowedRaise)
+    case readMay str of
+        Nothing -> do
+            tellPlayer (player p) "That was an invalid raise amount"
+            askRaise p allowedRaise
+        Just amount
+            | amount < 0 -> do
+                tellPlayer (player p) "You cannot raise by a negative value"
+                askRaise p allowedRaise
+            | otherwise -> return (Raise amount)
+
+wager p1 p2 pot owed = do
+    tellAllPlayers $ show (player p1) ++ " has " ++ show (chips p1) ++ " chips"
+    tellAllPlayers $ show (player p2) ++ " has " ++ show (chips p2) ++ " chips"
+    tellAllPlayers $ "The pot currently has " ++ show pot ++ " chips"
+    tellAllPlayers $ "Betting is to " ++ show (player p1) ++ ", who owes " ++ show owed
+    let allowedRaise = min (chips p2) (chips p1 - owed)
+    action <- askAction p1 allowedRaise
+    case action of
+        Call -> do
+            tellAllPlayers $ show (player p1) ++ " calls"
+            let p1' = p1 { chips = chips p1 - owed }
+                pot' = pot + owed
+            finishHand p1' p2 pot'
+        Fold -> do
+            tellAllPlayers $ show (player p1) ++ " folds"
+            startGame (player p1) (chips p1) (player p2) (chips p2 + pot)
+        Raise raise -> do
+            tellAllPlayers $ show (player p1) ++ " raises " ++ show raise
+            let p1' = p1 { chips = chips p1 - owed - raise }
+            wager p2 p1' (pot + owed + raise) raise
+
+finishHand p1 p2 pot = do
+    tellAllPlayers ("All bets are in, the pot is at: " ++ show pot)
+    tellAllPlayers (show (player p1) ++ " has " ++ prettyHand (cards p1) ++ ", " ++ show (hand p1))
+    tellAllPlayers (show (player p2) ++ " has " ++ prettyHand (cards p2) ++ ", " ++ show (hand p2))
+    (winnings1, winnings2) <-
+        case compare (hand p1) (hand p2) of
+            LT -> do
+                tellAllPlayers (show (player p2) ++ " wins!")
+                return (0, pot)
+            EQ -> do
+                tellAllPlayers "Tied game"
+                let winnings1 = pot `div` 2
+                    winnings2 = pot - winnings1
+                return (winnings1, winnings2)
+            GT -> do
+                tellAllPlayers (show (player p1) ++ " wins!")
+                return (pot, 0)
+    startGame (player p1) (chips p1 + winnings1) (player p2) (chips p2 + winnings2)
+
+startGame player1 0 player2 chips2 = do
+    tellAllPlayers (show player1 ++ " is out of chips")
+    tellAllPlayers (show player2 ++ " wins with a total of: " ++ show chips2)
+startGame player1 chips1 player2 0 = do
+    tellAllPlayers (show player2 ++ " is out of chips")
+    tellAllPlayers (show player1 ++ " wins with a total of: " ++ show chips1)
+startGame player1 chips1 player2 chips2 = do
+    tellAllPlayers "Dealing..."
+    shuffled <- shuffleM deck
+    let (cards1, rest) = splitAt 5 shuffled
+        hand1 = pokerHand cards1
+        cards2 = take 5 rest
+        hand2 = pokerHand cards2
+        p1 = PokerPlayer
+            { player = player1
+            , chips = chips1
+            , cards = cards1
+            , hand = hand1
+            }
+        -- Always start with a 1 chip ante from player 2
+        pot = 1
+        owed = 1
+        p2 = PokerPlayer
+            { player = player2
+            , chips = chips2 - 1
+            , cards = cards2
+            , hand = hand2
+            }
+    tellPlayer player1 ("You have " ++ prettyHand cards1 ++ ", " ++ show hand1)
+    tellPlayer player2 ("You have " ++ prettyHand cards2 ++ ", " ++ show hand2)
+    wager p1 p2 pot owed
+
+main = playMultiplayerGame "two player five card stud" 2 $ do
+    tellAllPlayers "Welcome to two player five card stud!"
+    [player1, player2] <- getPlayers
+    startGame player1 20 player2 20
+
+-- Let's talk about the betting phase. We'll be alternating between each
+-- player. At each player's betting turn, he/she will be allowed to:
+--
+-- 1. Call, which would be to match whatever bet is on the table.
+-- 2. Raise, which would match the current bet and add a little more.
+-- 3. Fold
+
+{- hpodder component
+Copyright (C) 2006 John Goerzen <jgoerzen@complete.org>
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+-}
+
+{- |
+   Module     : FeedParser
+   Copyright  : Copyright (C) 2006 John Goerzen
+   License    : GNU GPL, version 2 or above
+
+   Maintainer : John Goerzen <jgoerzen@complete.org>
+   Stability  : provisional
+   Portability: portable
+
+Written by John Goerzen, jgoerzen\@complete.org
+
+-}
+module FeedParser where
+
+import Types
+import Text.XML.HaXml
+import Text.XML.HaXml.Parse
+import Text.XML.HaXml.Posn
+import Utils
+import Data.Maybe.Utils
+import Data.Char
+import Data.Either.Utils
+import Data.List
+import System.IO
+
+data Item = Item {itemtitle :: String,
+                  itemguid :: Maybe String,
+                  enclosureurl :: String,
+                  enclosuretype :: String,
+                  enclosurelength :: String
+                  }
+          deriving (Eq, Show, Read)
+
+data Feed = Feed {channeltitle :: String,
+                  items :: [Item]}
+            deriving (Eq, Show, Read)
+
+item2ep pc item =
+    Episode {podcast = pc, epid = 0,
+             eptitle = sanitize_basic (itemtitle item), 
+             epurl = sanitize_basic (enclosureurl item),
+             epguid = fmap sanitize_basic (itemguid item),
+             eptype = sanitize_basic (enclosuretype item), epstatus = Pending,
+             eplength = case reads . sanitize_basic . enclosurelength $ item of
+                          [] -> 0
+                          [(x, [])] -> x
+                          _ -> 0,
+             epfirstattempt = Nothing,
+             eplastattempt = Nothing,
+             epfailedattempts = 0}
+
+parse :: FilePath -> String -> IO (Either String Feed)
+parse fp name = 
+    do h <- openBinaryFile fp ReadMode
+       c <- hGetContents h
+       case xmlParse' name (unifrob c) of
+         Left x -> return (Left x)
+         Right y ->
+             do let doc = getContent y
+                let title = getTitle doc
+                let feeditems = getEnclosures doc
+                return $ Right $
+                           (Feed {channeltitle = title, items = feeditems})
+       where getContent (Document _ _ e _) = CElem e noPos
+
+unifrob ('\xfeff':x) = x -- Strip off unicode BOM
+unifrob x = x
+
+unesc = xmlUnEscape stdXmlEscaper
+
+getTitle doc = forceEither $ strofm "title" (channel doc)
+
+getEnclosures doc =
+    concat . map procitem $ item doc
+    where procitem i = map (procenclosure title guid) enclosure
+              where title = case strofm "title" [i] of
+                              Left x -> "Untitled"
+                              Right x -> x
+                    guid = case strofm "guid" [i] of
+                              Left _ -> Nothing
+                              Right x -> Just x
+                    enclosure = tag "enclosure" `o` children $ i
+          procenclosure title guid e =
+              Item {itemtitle = title,
+                    itemguid = guid,
+                    enclosureurl = head0 $ forceMaybe $ stratt "url" e,
+                    enclosuretype = head0 $ case stratt "type" e of
+                                              Nothing -> ["application/octet-stream"]
+                                              Just x -> x,
+                    enclosurelength = head $ case stratt "length" e of
+                                                Nothing -> ["0"]
+                                                Just [] -> ["0"]
+                                                Just x -> x
+                                                }
+          head0 [] = ""
+          head0 (x:xs) = x
+              
+
+item = tag "item" `o` children `o` channel
+
+channel =
+    tag "channel" `o` children `o` tag "rss"
+
+
+--------------------------------------------------
+-- Utilities
+--------------------------------------------------
+
+attrofelem :: String -> Content Posn -> Maybe AttValue
+attrofelem attrname (CElem inelem _) =
+    case unesc inelem of
+      Elem name al _ -> lookup attrname al
+attrofelem _ _ =
+    error "attrofelem: called on something other than a CElem"
+stratt :: String -> Content Posn -> Maybe [String]
+stratt attrname content =
+    case attrofelem attrname content of
+      Just (AttValue x) -> Just (concat . map mapfunc $ x)
+      Nothing -> Nothing
+    where mapfunc (Left x) = [x]
+          mapfunc (Right _) = []
+
+-- Finds the literal children of the named tag, and returns it/them
+tagof :: String -> CFilter Posn
+tagof x = keep /> tag x -- /> txt
+
+-- Retruns the literal string that tagof would find
+strof :: String -> Content Posn -> String
+strof x y = forceEither $ strof_either x y
+
+strof_either :: String -> Content Posn -> Either String String
+strof_either x y =
+    case tagof x $ y of
+      [CElem elem pos] -> Right $ verbatim $ tag x /> txt
+           $ CElem (unesc elem) pos
+      z -> Left $ "strof: expecting CElem in " ++ x ++ ", got "
+           ++ verbatim z ++ " at " ++ verbatim y
+
+strofm x y = 
+    if length errors /= 0
+       then Left errors
+       else Right (concat plainlist)
+    where mapped = map (strof_either x) $ y
+          (errors, plainlist) = conveithers mapped
+          isright (Left _) = False
+          isright (Right _) = True
+
+conveithers :: [Either a b] -> ([a], [b])
+conveithers inp =  worker inp ([], [])
+    where worker [] y = y
+          worker (Left x:xs) (lefts, rights) =
+              worker xs (x:lefts, rights)
+          worker (Right x:xs) (lefts, rights) =
+              worker xs (lefts, x:rights)
+
+
+{- |
+Module      :  $EmptyHeader$
+Description :  <optional short description entry>
+Copyright   :  (c) <Authors or Affiliations>
+License     :  GPLv2 or higher, see LICENSE.txt
+
+Maintainer  :  <email>
+Stability   :  unstable | experimental | provisional | stable | frozen
+Portability :  portable | non-portable (<reason>)
+
+<optional description>
+-}
+-------------------------------------------------------------------------------
+-- GMP
+-- Copyright 2007, Lutz Schroeder and Georgel Calin
+-------------------------------------------------------------------------------
+module Main where
+
+import Text.ParserCombinators.Parsec
+import System.Environment
+import IO
+
+import GMP.GMPAS
+import GMP.GMPSAT
+import GMP.GMPParser
+import GMP.ModalLogic
+import GMP.ModalK()
+import GMP.ModalKD()
+import GMP.GradedML()
+import GMP.CoalitionL()
+import GMP.MajorityL()
+import GMP.GenericML()
+import GMP.Lexer
+
+-------------------------------------------------------------------------------
+-- Funtion to run parser & print
+-------------------------------------------------------------------------------
+runLex :: (Ord a, Show a, ModalLogic a b) => Parser (Formula a) -> String -> IO ()
+runLex p input = run (do
+    whiteSpace
+    ; x <- p
+    ; eof
+    ; return x
+    ) input
+
+run :: (Ord a, Show a, ModalLogic a b) => Parser (Formula a) -> String -> IO ()
+run p input
+        = case (parse p "" input) of
+                Left err -> do putStr "parse error at "
+                               print err
+                Right x ->  do putStrLn ("Input Formula: "{- ++ show x ++ " ..."-})
+                               let sat = checkSAT x
+                               if sat then putStrLn "x ... is Satisfiable"
+                                      else putStrLn "x ... is not Satisfiable"
+                               let nsat = checkSAT $ Neg x
+                               if nsat then putStrLn "~x ... is Satisfiable"
+                                       else putStrLn "~x ... is not Satisfiable"
+                               let prov = not $ checkSAT $ Neg x
+                               if prov then putStrLn "x ... is Provable"
+                                       else putStrLn "x ... is not Provable"
+-------------------------------------------------------------------------------
+-- For Testing
+-------------------------------------------------------------------------------
+runTest :: Int -> FilePath -> IO ()
+runTest ml p = do
+    input <- readFile (p)
+    case ml of
+     1 -> runLex ((par5er parseIndex) :: Parser (Formula ModalK)) input
+     2 -> runLex ((par5er parseIndex) :: Parser (Formula ModalKD)) input
+     3 -> runLex ((par5er parseIndex) :: Parser (Formula CL)) input
+     4 -> runLex ((par5er parseIndex) :: Parser (Formula GML)) input
+     5 -> runLex ((par5er parseIndex) :: Parser (Formula ML)) input
+     _ -> runLex ((par5er parseIndex) :: Parser (Formula Kars)) input
+    return ()
+help :: IO()
+help = do
+    putStrLn ( "Usage:\n" ++
+               "    ./main <ML> <path>\n\n" ++
+               "<ML>:    1 for K ML\n" ++
+               "         2 for KD ML\n" ++
+               "         3 for Coalition L\n" ++
+               "         4 for Graded ML\n" ++
+               "         5 for Majority L\n" ++
+               "         _ for Generic ML\n" ++
+               "<path>:  path to input file\n" )
+-------------------------------------------------------------------------------
+main :: IO()
+main = do
+    args <- getArgs
+    if (args == [])||(head args == "--help")||(length args < 2)
+     then help
+     else let ml = head args
+              p = head (tail args)
+          in runTest (read ml) p
+
+{-# LANGUAGE ScopedTypeVariables #-}
+import Bench
+import Bench.Triangulations
+
+
+main = print (qVertexSolBench trs)
+
+{-# LANGUAGE OverloadedStrings #-}
+
+module Response.Export 
+    (pdfResponse) where
+
+import Happstack.Server
+import qualified Data.ByteString.Lazy as BS
+import Control.Monad.IO.Class (liftIO)
+import qualified Data.ByteString.Base64.Lazy as BEnc
+import ImageConversion
+import TimetableImageCreator (renderTable)
+import System.Random
+import Latex
+
+-- | Returns a PDF containing the image of the timetable
+-- requested by the user.
+pdfResponse :: String -> String -> ServerPart Response
+pdfResponse courses session =
+    liftIO $ getPdf courses session
+
+getPdf :: String -> String -> IO Response
+getPdf courses session = do
+    gen <- newStdGen
+    let (rand, _) = next gen
+        svgFilename = (show rand ++ ".svg")
+        imageFilename = (show rand ++ ".png")
+        texFilename = (show rand ++ ".tex")
+        pdfFilename = (drop 4 texFilename) ++ ".pdf"
+    renderTable svgFilename courses session
+    returnPdfData svgFilename imageFilename pdfFilename texFilename
+
+returnPdfData :: String -> String -> String -> String -> IO Response
+returnPdfData svgFilename imageFilename pdfFilename texFilename = do
+    createImageFile svgFilename imageFilename
+    compileTex texFilename imageFilename
+    _ <- compileTexToPdf texFilename
+    pdfData <- BS.readFile texFilename
+    _ <- removeImage svgFilename
+    _ <- removeImage imageFilename
+    _ <- removeImage pdfFilename
+    _ <- removeImage texFilename
+    let encodedData = BEnc.encode pdfData
+    return $ toResponse encodedData
+ 
+
+
+module Hazel.StringWriter where
+
+import Control.Monad.State
+
+
+------------- StringState -------------
+
+type StringState = State String (Maybe Bool)
+
+eval :: StringState -> String
+eval s = execState s ""
+
+newLine :: StringState
+append  :: String -> StringState
+apply   :: (String -> String) -> StringState
+
+newLine  = append "\n"
+append s = apply (++s)
+apply f  = get >>= put.(f$) >> return (Just True)
+
+--newLine :: StringState
+--newLine = do
+--            t <- get
+--            put $ t++"\n"
+--            return True
+-- get >>= put.(++"\n") >>= return True
+
+--append :: String -> StringState
+--append s = do
+--           t <- get
+--           put $ t++s
+--           return True
+-- get >>= put.(++s) >>= return True
+
+--modify :: (String -> String) -> StringState
+--modify f = do
+--             t <- get
+--             put $ f t
+--             return True
+
+
+
+{-# LANGUAGE FlexibleContexts, CPP, JavaScriptFFI #-}
+module Carnap.GHCJS.Action.TreeDeductionCheck (treeDeductionCheckAction) where
+
+import Lib hiding (content)
+import Data.Tree
+import Data.Either
+import Data.Map as M (lookup,Map, toList)
+import Data.IORef (IORef, readIORef, newIORef, writeIORef)
+import Data.Typeable (Typeable)
+import Data.Aeson.Types
+import Data.Text (pack)
+import qualified Text.Parsec as P (parse) 
+import Control.Monad.State (modify,get,execState,State)
+import Control.Lens
+import Control.Concurrent
+import Control.Monad (mplus, (>=>))
+import Control.Monad.IO.Class (liftIO)
+import Carnap.Core.Unification.Unification (MonadVar,FirstOrder, applySub)
+import Carnap.Core.Unification.ACUI (ACUI)
+import Carnap.Core.Data.Types
+import Carnap.Core.Data.Classes
+import Carnap.Core.Data.Optics
+import Carnap.Languages.ClassicalSequent.Syntax
+import Carnap.Languages.ClassicalSequent.Parser
+import Carnap.Languages.PurePropositional.Syntax
+import Carnap.Languages.Util.LanguageClasses
+import Carnap.Calculi.Util
+import Carnap.Calculi.NaturalDeduction.Syntax
+import Carnap.Calculi.NaturalDeduction.Checker
+import Carnap.Calculi.Tableau.Data
+import Carnap.Languages.PurePropositional.Logic (ofPropTreeSys)
+import Carnap.Languages.PureFirstOrder.Logic (ofFOLTreeSys)
+import Carnap.GHCJS.Util.ProofJS
+import Carnap.GHCJS.SharedTypes
+import GHCJS.DOM.HTMLElement (getInnerText, castToHTMLElement)
+import GHCJS.DOM.Element (setInnerHTML, click, keyDown, input, setAttribute )
+import GHCJS.DOM.Node (appendChild, removeChild, getParentNode, insertBefore, getParentElement)
+import GHCJS.DOM.Types (Element, Document, IsElement)
+import GHCJS.DOM.Document (createElement, getActiveElement)
+import GHCJS.DOM.KeyboardEvent
+import GHCJS.DOM.EventM
+import GHCJS.DOM
+import GHCJS.Types
+
+treeDeductionCheckAction ::  IO ()
+treeDeductionCheckAction = 
+            do initializeCallback "checkProofTreeInfo" njCheck
+               initElements getCheckers activateChecker
+               return ()
+    where njCheck = maybe (error "can't find PropNJ") id $ (\calc -> checkProofTree calc Nothing >=> return . fst) `ofPropTreeSys` "PropNJ" 
+
+getCheckers :: IsElement self => Document -> self -> IO [Maybe (Element, Element, Map String String)]
+getCheckers w = genInOutElts w "div" "div" "treedeductionchecker"
+
+activateChecker :: Document -> Maybe (Element, Element, Map String String) -> IO ()
+activateChecker _ Nothing  = return ()
+activateChecker w (Just (i, o, opts)) = case (setupWith `ofPropTreeSys` sys) 
+                                              `mplus` (setupWith `ofFOLTreeSys` sys)
+                                        of Just io -> io
+                                           Nothing -> error $ "couldn't parse tree system: " ++ sys
+        where sys = case M.lookup "system" opts of
+                        Just s -> s
+                        Nothing -> "propNK"
+
+              setupWith calc = do
+                  mgoal <- parseGoal calc
+                  let content = M.lookup "content" opts
+                  root <- case (content >>= decodeJSON, mgoal) of
+                              (Just val,_) -> let Just c = content in initRoot c o
+                              (_, Just seq) | "prepopulate" `inOpts` opts -> 
+                                                initRoot ("{\"label\": \"" ++ show (view rhs seq) 
+                                                          ++ "\", \"rule\":\"\", \"forest\": []}") o
+                              _ -> initRoot "{\"label\": \"\", \"rule\":\"\", \"forest\": []}" o
+                  memo <- newIORef mempty
+                  threadRef <- newIORef (Nothing :: Maybe ThreadId)
+                  bw <- createButtonWrapper w o
+                  let submit = submitTree w memo opts calc root mgoal
+                  btStatus <- createSubmitButton w bw submit opts
+                  if "displayJSON" `inOpts` opts 
+                      then do
+                          Just displayDiv <- createElement w (Just "div")
+                          setAttribute displayDiv "class" "jsonDisplay"
+                          setAttribute displayDiv "contenteditable" "true"
+                          val <- toCleanVal root
+                          setInnerHTML displayDiv . Just $ toJSONString val
+                          toggleDisplay <- newListener $ do
+                              kbe <- event
+                              isCtrl <- getCtrlKey kbe
+                              code <- liftIO $ keyString kbe
+                              liftIO $ print code
+                              if isCtrl && code == "?" 
+                                  then do
+                                      preventDefault
+                                      mparent <- getParentNode displayDiv
+                                      case mparent of
+                                          Just p -> removeChild o (Just displayDiv)
+                                          _ -> appendChild o (Just displayDiv)
+                                      return ()
+                                  else return ()
+                          addListener o keyDown toggleDisplay False
+                          updateRoot <- newListener $ liftIO $ do 
+                                Just json <- getInnerText (castToHTMLElement displayDiv)
+                                replaceRoot root json
+                          addListener displayDiv input updateRoot False
+                          root `onChange` (\_ -> do
+                                   mfocus <- getActiveElement w
+                                   --don't update when the display is
+                                   --focussed, to avoid cursor jumping
+                                   if Just displayDiv /= mfocus then do
+                                       val <- toCleanVal root
+                                       setInnerHTML displayDiv . Just $ toJSONString val
+                                   else return ())
+                          return ()
+                      else return ()
+                  initialCheck <- newListener $ liftIO $  do 
+                                    forkIO $ do
+                                        threadDelay 500000
+                                        mr <- toCleanVal root
+                                        case mr of
+                                            Just r -> do (info,mseq) <- checkProofTree calc (Just memo) r 
+                                                         decorate root info
+                                                         Just wrap <- getParentElement i
+                                                         updateInfo calc mgoal mseq wrap
+                                            Nothing -> return ()
+                                    return ()
+                  addListener i initialize initialCheck False --initial check in case we preload a tableau
+                  doOnce i mutate False $ liftIO $ btStatus Edited
+                  case M.lookup "init" opts of Just "now" -> dispatchCustom w i "initialize"; _ -> return ()
+                  root `onChange` (\_ -> dispatchCustom w i "mutate")
+                  root `onChange` (\_ -> checkOnChange memo threadRef calc mgoal i root)
+
+              parseGoal calc = do 
+                  let seqParse = parseSeqOver $ tbParseForm calc
+                  case M.lookup "goal" opts of
+                      Just s -> case P.parse seqParse "" s of
+                          Left e -> do setInnerHTML i (Just $ "Couldn't Parse This Goal:" ++ s)
+                                       error "couldn't parse goal"
+                          Right seq -> do setInnerHTML i (Just . tbNotation calc . show $ seq)
+                                          return $ Just seq
+                      Nothing -> do setInnerHTML i (Just "Awaiting a proof")
+                                    return Nothing
+
+updateInfo _ (Just goal) (Just seq) wrap | seq `seqSubsetUnify` goal = setAttribute wrap "class" "success"
+updateInfo _ (Just goal) (Just seq) wrap = setAttribute wrap "class" "failure"
+updateInfo calc Nothing (Just seq) wrap = setInnerHTML wrap (Just . tbNotation calc . show $ seq)
+updateInfo _ Nothing Nothing wrap  = setInnerHTML wrap (Just "Awaiting a proof")
+updateInfo _ _ _ wrap = setAttribute wrap "class" ""
+
+submitTree w memo opts calc root (Just seq) l = 
+        do Just val <- liftIO $ toCleanVal root
+           case parse parseTreeJSON val of
+               Error s -> message $ "Something has gone wrong. Here's the error:" ++ s
+               Success tree -> case toProofTree calc tree of
+                     Left _ | "exam" `inOpts` opts -> trySubmit w DeductionTree opts l (DeductionTreeData (pack (show seq)) tree (toList opts)) False
+                     Left _ -> message "Something is wrong with the proof... Try again?"
+                     Right prooftree -> do 
+                          validation <- liftIO $ hoReduceProofTreeMemo memo (structuralRestriction prooftree) prooftree 
+                          case validation of
+                              Right seq' | "exam" `inOpts` opts || (seq' `seqSubsetUnify` seq) 
+                                -> trySubmit w DeductionTree opts l (DeductionTreeData (pack (show seq)) tree (toList opts)) (seq' `seqSubsetUnify` seq)
+                              _ -> message "Something is wrong with the proof... Try again?"
+
+checkOnChange :: ( ReLex lex
+                 , Sequentable lex
+                 , Inference rule lex sem
+                 , FirstOrder (ClassicalSequentOver lex)
+                 , ACUI (ClassicalSequentOver lex)
+                 , MonadVar (ClassicalSequentOver lex) (State Int)
+                 , StaticVar (ClassicalSequentOver lex)
+                 , Schematizable (lex (ClassicalSequentOver lex))
+                 , CopulaSchema (ClassicalSequentOver lex)
+                 , Typeable sem
+                 , Show rule
+                 , PrismSubstitutionalVariable lex
+                 , FirstOrderLex (lex (ClassicalSequentOver lex))
+                 , StructuralOverride rule (ProofTree rule lex sem)
+                 , StructuralInference rule lex (ProofTree rule lex sem)
+                 ) => ProofMemoRef lex sem rule -> IORef (Maybe ThreadId) -> TableauCalc lex sem rule 
+                                                -> Maybe (ClassicalSequentOver lex (Sequent sem)) -> Element -> JSVal -> IO ()
+checkOnChange memo threadRef calc mgoal i root = do
+        mt <- readIORef threadRef
+        case mt of Just t -> killThread t
+                   Nothing -> return ()
+        t' <- forkIO $ do
+            threadDelay 500000
+            Just changedVal <- toCleanVal root
+            (theInfo, mseq) <- checkProofTree calc (Just memo) changedVal 
+            decorate root theInfo
+            Just wrap <- getParentElement i
+            updateInfo calc mgoal mseq wrap
+        writeIORef threadRef (Just t')
+
+toProofTree :: ( Typeable sem
+               , ReLex lex
+               , Sequentable lex
+               , StructuralOverride rule (ProofTree rule lex sem)
+               , Inference rule lex sem
+               ) => TableauCalc lex sem rule -> Tree (String,String) -> Either (TreeFeedback lex) (ProofTree rule lex sem)
+toProofTree calc (Node (l,r) f) 
+    | all isRight parsedForest && isRight newNode = handleOverride <$> (Node <$> newNode <*> sequence parsedForest)
+    | isRight newNode = Left $ Node Waiting (map cleanTree parsedForest)
+    | Left n <- newNode = Left n
+    where parsedLabel = (SS . liftToSequent) <$> P.parse (tbParseForm calc) "" l
+          parsedRules = P.parse (tbParseRule calc) "" r
+          parsedForest = map (toProofTree calc) f
+          cleanTree (Left fs) = fs
+          cleanTree (Right fs) = fmap (const Waiting) fs
+          newNode = case ProofLine 0 <$> parsedLabel <*> parsedRules of
+                        Right l -> Right l
+                        Left e -> Left (Node (ProofError $ NoParse e 0) (map cleanTree parsedForest))
+          handleOverride f@(Node l fs) = case structuralOverride f (head (rule l)) of
+                                               Nothing -> f
+                                               Just rs -> Node (l {rule = rs}) fs
+
+checkProofTree :: ( ReLex lex
+                  , Sequentable lex
+                  , Inference rule lex sem
+                  , FirstOrder (ClassicalSequentOver lex)
+                  , ACUI (ClassicalSequentOver lex)
+                  , MonadVar (ClassicalSequentOver lex) (State Int)
+                  , StaticVar (ClassicalSequentOver lex)
+                  , Schematizable (lex (ClassicalSequentOver lex))
+                  , CopulaSchema (ClassicalSequentOver lex)
+                  , Typeable sem
+                  , Show rule
+                  , StructuralOverride rule (ProofTree rule lex sem)
+                  , StructuralInference rule lex (ProofTree rule lex sem)
+                  ) => TableauCalc lex sem rule -> Maybe (ProofMemoRef lex sem rule) -> Value -> IO (Value, Maybe (ClassicalSequentOver lex (Sequent sem)))
+checkProofTree calc mmemo v = case parse parseTreeJSON v of
+                           Success t -> case toProofTree calc t of 
+                                  Left feedback -> return (toInfo feedback, Nothing)
+                                  Right tree -> do (val,mseq) <- validateProofTree calc mmemo tree
+                                                   return (toInfo val, mseq)
+                           Error s -> do print (show v)
+                                         error s
+
+validateProofTree :: ( ReLex lex
+                     , Sequentable lex
+                     , Inference rule lex sem
+                     , FirstOrder (ClassicalSequentOver lex)
+                     , ACUI (ClassicalSequentOver lex)
+                     , MonadVar (ClassicalSequentOver lex) (State Int)
+                     , StaticVar (ClassicalSequentOver lex)
+                     , Schematizable (lex (ClassicalSequentOver lex))
+                     , CopulaSchema (ClassicalSequentOver lex)
+                     , Typeable sem
+                     , Show rule
+                     , StructuralInference rule lex (ProofTree rule lex sem)
+                     ) => TableauCalc lex sem rule -> Maybe (ProofMemoRef lex sem rule) 
+                       -> ProofTree rule lex sem -> IO (TreeFeedback lex, Maybe (ClassicalSequentOver lex (Sequent sem)))
+validateProofTree calc mmemo t@(Node _ fs) = do rslt <- case mmemo of 
+                                                     Nothing -> return $ hoReduceProofTree (structuralRestriction t) t
+                                                     Just memo -> hoReduceProofTreeMemo memo (structuralRestriction t) t
+                                                case rslt of
+                                                     Left msg -> (,) <$> (Node <$> pure (ProofError msg) <*> mapM (validateProofTree calc mmemo >=> return . fst) fs) 
+                                                                     <*> pure Nothing
+                                                     Right seq ->  (,) <$> (Node <$> pure (ProofData (tbNotation calc . show $ seq)) <*> mapM (validateProofTree calc mmemo >=> return . fst) fs) 
+                                                                    <*> pure (Just seq)
+
+-- Move generator logic
+
+module Kurt.GoEngine ( genMove
+                     , simulatePlayout
+                     , EngineState(..)
+                     , newEngineState
+                     , updateEngineState
+                     , newUctTree
+                     ) where
+
+import           Control.Arrow               (second)
+import           Control.Monad               (liftM)
+import           Control.Monad.Primitive     (PrimState)
+import           Control.Monad.ST            (ST, runST, stToIO)
+import           Control.Parallel.Strategies (parMap, rdeepseq)
+import           Data.List                   ((\\))
+import qualified Data.Map                    as M (map)
+import           Data.Maybe                  (fromMaybe)
+import           Data.Time.Clock             (UTCTime (..), getCurrentTime,
+                                              picosecondsToDiffTime)
+import           Data.Tree                   (rootLabel)
+import           Data.Tree.Zipper            (findChild, fromTree, hasChildren,
+                                              tree)
+import           System.Random.MWC           (Gen, Seed, restore, save, uniform,
+                                              withSystemRandom)
+
+import           Data.Goban.GameState
+import           Data.Goban.Types            (Color (..), Move (..), Score,
+                                              Stone (..), Vertex)
+import           Data.Goban.Utils            (rateScore, winningScore)
+import           Kurt.Config
+
+import           Data.Tree.UCT
+import           Data.Tree.UCT.GameTree      (MoveNode (..), RaveMap,
+                                              UCTTreeLoc, newMoveNode,
+                                              newRaveMap)
+
+import           Debug.TraceOrId             (trace)
+
+-- import Data.Tree (drawTree)
+
+data EngineState = EngineState {
+      getGameState :: !GameState
+    , getUctTree   :: !(UCTTreeLoc Move)
+    , getRaveMap   :: !(RaveMap Move)
+    , boardSize    :: !Int
+    , getKomi      :: !Score
+    , getConfig    :: !KurtConfig
+    }
+
+type LoopState = (UCTTreeLoc Move, RaveMap Move)
+
+-- result from playout: score, playedMoves, path to startnode in tree
+type Result = (Score, [Move], [Move])
+-- request for playout: gamestate, path to startnode in tree, seed
+type Request = (GameState, [Move], Seed)
+
+
+newEngineState :: KurtConfig -> EngineState
+newEngineState config =
+  EngineState { getGameState =
+                   newGameState (initialBoardsize config) (initialKomi config)
+              , getUctTree = newUctTree
+              , getRaveMap = newRaveMap
+              , boardSize = initialBoardsize config
+              , getKomi = initialKomi config
+              , getConfig = config
+              }
+
+newUctTree :: UCTTreeLoc Move
+newUctTree =
+    fromTree $ newMoveNode
+            (trace "UCT tree root move accessed"
+             (Move (Stone (25,25) White)))
+            (0.5, 1)
+
+
+updateEngineState :: EngineState -> Move -> EngineState
+updateEngineState eState move =
+    eState { getGameState = gState', getUctTree = loc' }
+    where
+      gState' = updateGameState gState move
+      gState = getGameState eState
+      loc' = case move of
+               (Resign _) -> loc
+               _otherwise ->
+                   if hasChildren loc
+                   then selectSubtree loc move
+                   else newUctTree
+      loc = getUctTree eState
+
+selectSubtree :: UCTTreeLoc Move -> Move -> UCTTreeLoc Move
+selectSubtree loc move =
+    loc''
+    where
+      loc'' = fromTree $ tree loc'
+      loc' =
+          fromMaybe newUctTree
+          $ findChild ((move ==) . nodeMove . rootLabel) loc
+
+
+
+genMove :: EngineState -> Color -> IO (Move, EngineState)
+genMove eState color = do
+  now <- getCurrentTime
+  let deadline = UTCTime { utctDay = utctDay now
+                         , utctDayTime = thinkPicosecs + utctDayTime now }
+  let moves = nextMoves gState color
+  let score = scoreGameState gState
+  (if null moves
+   then
+       if winningScore color score
+       then return (Pass color, eState)
+       else return (Resign color, eState)
+   else (do
+          seed <- withSystemRandom (save :: Gen (PrimState IO) -> IO Seed)
+          (loc', raveMap') <- runUCT loc gState raveMap config deadline seed
+          let eState' = eState { getUctTree = loc', getRaveMap = raveMap' }
+          return (bestMoveFromLoc loc' (getState gState) score, eState')))
+    where
+      config = getConfig eState
+      gState = getGameState eState
+      loc = getUctTree eState
+      raveMap = M.map (second ((1 +) . (`div` 2))) $ getRaveMap eState
+      thinkPicosecs =
+          picosecondsToDiffTime
+          $ fromIntegral (maxTime config) * 1000000000
+
+
+
+
+
+bestMoveFromLoc :: UCTTreeLoc Move -> GameStateStuff -> Score -> Move
+bestMoveFromLoc loc state score =
+    case principalVariation loc of
+      [] ->
+          error "bestMoveFromLoc: principalVariation is empty"
+      (node : _) ->
+          if value < 0.1
+          then
+              if winningScore color score
+              then
+                  trace ("bestMoveFromLoc pass " ++ show node)
+                  Pass color
+              else
+                  trace ("bestMoveFromLoc resign " ++ show node)
+                  Resign color
+          else
+              trace ("total sims: " ++ show (nodeVisits$rootLabel$tree$loc)
+                     ++ " best: " ++ show node
+                     ++ "\n")
+                     -- ++ (drawTree $ fmap show $ tree loc)
+              move
+          where
+            move = nodeMove node
+            value = nodeValue node
+            color = nextMoveColor state
+
+
+
+runUCT :: UCTTreeLoc Move
+       -> GameState
+       -> RaveMap Move
+       -> KurtConfig
+       -> UTCTime
+       -> Seed
+       -> IO LoopState
+runUCT initLoc rootGameState initRaveMap config deadline seed00 = do
+  uctLoop stateStream0 0
+    where
+      uctLoop :: [LoopState] -> Int -> IO LoopState
+      uctLoop [] _ = return (initLoc, initRaveMap)
+      uctLoop (st : stateStream) !n = do
+        _ <- return $! st
+        let maxRuns = n >= (maxPlayouts config)
+        now <- getCurrentTime
+        let timeIsUp = (now > deadline)
+        (if maxRuns || timeIsUp
+         then return st
+         else uctLoop stateStream (n + 1))
+
+      stateStream0 = loop0 seed00 (initLoc, initRaveMap)
+
+      loop0 :: Seed -> LoopState -> [LoopState]
+      loop0 seed0 st0 =
+          map (\(_, st, _) -> st) $ iterate loop (seed0, st0, [])
+          where
+            loop (seed, st, results0) =
+                (seed', st'', results)
+                where
+                  st'' = updater st' r
+                  r : results = results0 ++ (parMap rdeepseq runOne requests)
+                  (st', seed', requests) = requestor st seed reqNeeded
+                  reqNeeded = max 2 $ maxThreads config - length results0
+
+      updater :: LoopState -> Result -> LoopState
+      updater !st !res =
+          updateTreeResult st res
+
+      requestor :: LoopState -> Seed -> Int -> (LoopState, Seed, [Request])
+      requestor !st0 seed0 !n =
+          last $ take n $ iterate r (st0, seed0, [])
+          where
+            r :: (LoopState, Seed, [Request]) -> (LoopState, Seed, [Request])
+            r (!st, seed, rs) = (st', seed', request : rs)
+                where
+                  seed' = incrSeed seed
+                  st' = (loc, raveMap)
+                  (_, raveMap) = st
+                  request = (leafGameState, path, seed)
+                  (loc, (leafGameState, path)) = nextNode st
+
+      nextNode :: LoopState -> (UCTTreeLoc Move, (GameState, [Move]))
+      nextNode (!loc, !raveMap) =
+          (loc'', (leafGameState, path))
+              where
+                loc'' = backpropagate (\_x -> 0) updateNodeVisits $ expandNode loc' slHeu moves
+                moves = nextMoves leafGameState $ nextMoveColor $ getState leafGameState
+                leafGameState = getLeafGameState rootGameState path
+                (loc', path) = selectLeafPath policy loc
+                policy = policyRaveUCB1 (uctExplorationPercent config) (raveWeight config) raveMap
+                slHeu = makeStonesAndLibertyHeuristic leafGameState config
+
+
+updateTreeResult :: LoopState -> Result -> LoopState
+updateTreeResult (!loc, !raveMap) (!score, !playedMoves, !path) =
+    (loc', raveMap')
+    where
+      raveMap' = updateRaveMap raveMap (rateScore score) $ drop (length playedMoves `div` 3) playedMoves
+      loc' = backpropagate (rateScore score) updateNodeValue $ getLeaf loc path
+
+
+simulatePlayout :: GameState -> IO [Move]
+simulatePlayout gState = do
+  seed <- withSystemRandom (save :: Gen (PrimState IO) -> IO Seed)
+  let gState' = getLeafGameState gState []
+  (oneState, playedMoves) <- stToIO $ runOneRandom gState' seed
+  let score = scoreGameState oneState
+  trace ("simulatePlayout " ++ show score) $ return ()
+  return $ reverse playedMoves
+
+
+runOne :: Request -> Result
+runOne (gameState, path, seed) =
+    (score, playedMoves, path)
+    where
+      score = scoreGameState endState
+      (endState, playedMoves) = runST $ runOneRandom gameState seed
+
+runOneRandom :: GameState -> Seed -> ST s (GameState, [Move])
+runOneRandom initState seed = do
+  rGen <- restore seed
+  run initState 0 rGen []
+    where
+      run :: GameState -> Int -> Gen s -> [Move] -> ST s (GameState, [Move])
+      run state 1000 _ moves = return (trace ("runOneRandom not done after 1000 moves " ++ show moves) state, [])
+      run state runCount rGen moves = do
+        move <- genMoveRand state rGen
+        let state' = updateGameState state move
+        case move of
+          (Pass passColor) -> do
+                    move' <- genMoveRand state' rGen
+                    let state'' = updateGameState state' move'
+                    case move' of
+                      (Pass _) ->
+                          return (state'', moves)
+                      sm@(Move _) ->
+                          run state'' (runCount + 1) rGen (sm : Pass passColor : moves)
+                      (Resign _) ->
+                          error "runOneRandom encountered Resign"
+          sm@(Move _) ->
+              run state' (runCount + 1) rGen (sm : moves)
+          (Resign _) ->
+              error "runOneRandom encountered Resign"
+
+
+
+genMoveRand :: GameState -> Gen s -> ST s Move
+genMoveRand state rGen =
+    pickSane $ freeVertices $ getState state
+    where
+      pickSane [] =
+           return $ Pass color
+      pickSane [p] = do
+        let stone = Stone p color
+        let sane = isSaneMove state stone
+        return (if sane
+                then Move stone
+                else Pass color)
+      pickSane ps = do
+        p <- pick ps rGen
+        let stone = Stone p color
+        let sane = isSaneMove state stone
+        (if sane
+         then return $ Move stone
+         else pickSane (ps \\ [p]))
+      color = nextMoveColor $ getState state
+
+
+pick :: [Vertex] -> Gen s -> ST s Vertex
+pick as rGen = do
+  i <- liftM (`mod` length as) $ uniform rGen
+  return $ as !! i
+
+incrSeed :: Seed -> Seed
+incrSeed !seed =
+    runST $ do
+      gen <- restore seed
+      x <- uniform gen
+      _ <- return $ x + (1 :: Int)
+      seed' <- save gen
+      return $! seed'
+
+{-# LANGUAGE DataKinds                   #-}
+{-# LANGUAGE DeriveGeneric               #-}
+{-# LANGUAGE FlexibleInstances           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving  #-}
+{-# LANGUAGE LambdaCase                  #-}
+{-# LANGUAGE NoImplicitPrelude           #-}
+{-# LANGUAGE OverloadedStrings           #-}
+{-# LANGUAGE RecordWildCards             #-}
+{-# LANGUAGE TypeFamilies                #-}
+
+{-# OPTIONS_GHC -fno-warn-unused-imports #-}
+
+-- Module      : Network.AWS.CloudWatchLogs.PutLogEvents
+-- Copyright   : (c) 2013-2014 Brendan Hay <brendan.g.hay@gmail.com>
+-- License     : This Source Code Form is subject to the terms of
+--               the Mozilla Public License, v. 2.0.
+--               A copy of the MPL can be found in the LICENSE file or
+--               you can obtain it at http://mozilla.org/MPL/2.0/.
+-- Maintainer  : Brendan Hay <brendan.g.hay@gmail.com>
+-- Stability   : experimental
+-- Portability : non-portable (GHC extensions)
+--
+-- Derived from AWS service descriptions, licensed under Apache 2.0.
+
+-- | Uploads a batch of log events to the specified log stream.
+--
+-- Every PutLogEvents request must include the 'sequenceToken' obtained from the
+-- response of the previous request. An upload in a newly created log stream
+-- does not require a 'sequenceToken'.
+--
+-- The batch of events must satisfy the following constraints:  The maximum
+-- batch size is 32,768 bytes, and this size is calculated as the sum of all
+-- event messages in UTF-8, plus 26 bytes for each log event. None of the log
+-- events in the batch can be more than 2 hours in the future. None of the log
+-- events in the batch can be older than 14 days or the retention period of the
+-- log group. The log events in the batch must be in chronological ordered by
+-- their 'timestamp'. The maximum number of log events in a batch is 1,000.
+--
+-- <http://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/API_PutLogEvents.html>
+module Network.AWS.CloudWatchLogs.PutLogEvents
+    (
+    -- * Request
+      PutLogEvents
+    -- ** Request constructor
+    , putLogEvents
+    -- ** Request lenses
+    , pleLogEvents
+    , pleLogGroupName
+    , pleLogStreamName
+    , pleSequenceToken
+
+    -- * Response
+    , PutLogEventsResponse
+    -- ** Response constructor
+    , putLogEventsResponse
+    -- ** Response lenses
+    , plerNextSequenceToken
+    ) where
+
+import Network.AWS.Prelude
+import Network.AWS.Request.JSON
+import Network.AWS.CloudWatchLogs.Types
+import qualified GHC.Exts
+
+data PutLogEvents = PutLogEvents
+    { _pleLogEvents     :: List1 "logEvents" InputLogEvent
+    , _pleLogGroupName  :: Text
+    , _pleLogStreamName :: Text
+    , _pleSequenceToken :: Maybe Text
+    } deriving (Eq, Read, Show)
+
+-- | 'PutLogEvents' constructor.
+--
+-- The fields accessible through corresponding lenses are:
+--
+-- * 'pleLogEvents' @::@ 'NonEmpty' 'InputLogEvent'
+--
+-- * 'pleLogGroupName' @::@ 'Text'
+--
+-- * 'pleLogStreamName' @::@ 'Text'
+--
+-- * 'pleSequenceToken' @::@ 'Maybe' 'Text'
+--
+putLogEvents :: Text -- ^ 'pleLogGroupName'
+             -> Text -- ^ 'pleLogStreamName'
+             -> NonEmpty InputLogEvent -- ^ 'pleLogEvents'
+             -> PutLogEvents
+putLogEvents p1 p2 p3 = PutLogEvents
+    { _pleLogGroupName  = p1
+    , _pleLogStreamName = p2
+    , _pleLogEvents     = withIso _List1 (const id) p3
+    , _pleSequenceToken = Nothing
+    }
+
+pleLogEvents :: Lens' PutLogEvents (NonEmpty InputLogEvent)
+pleLogEvents = lens _pleLogEvents (\s a -> s { _pleLogEvents = a }) . _List1
+
+pleLogGroupName :: Lens' PutLogEvents Text
+pleLogGroupName = lens _pleLogGroupName (\s a -> s { _pleLogGroupName = a })
+
+pleLogStreamName :: Lens' PutLogEvents Text
+pleLogStreamName = lens _pleLogStreamName (\s a -> s { _pleLogStreamName = a })
+
+-- | A string token that must be obtained from the response of the previous 'PutLogEvents' request.
+pleSequenceToken :: Lens' PutLogEvents (Maybe Text)
+pleSequenceToken = lens _pleSequenceToken (\s a -> s { _pleSequenceToken = a })
+
+newtype PutLogEventsResponse = PutLogEventsResponse
+    { _plerNextSequenceToken :: Maybe Text
+    } deriving (Eq, Ord, Read, Show, Monoid)
+
+-- | 'PutLogEventsResponse' constructor.
+--
+-- The fields accessible through corresponding lenses are:
+--
+-- * 'plerNextSequenceToken' @::@ 'Maybe' 'Text'
+--
+putLogEventsResponse :: PutLogEventsResponse
+putLogEventsResponse = PutLogEventsResponse
+    { _plerNextSequenceToken = Nothing
+    }
+
+plerNextSequenceToken :: Lens' PutLogEventsResponse (Maybe Text)
+plerNextSequenceToken =
+    lens _plerNextSequenceToken (\s a -> s { _plerNextSequenceToken = a })
+
+instance ToPath PutLogEvents where
+    toPath = const "/"
+
+instance ToQuery PutLogEvents where
+    toQuery = const mempty
+
+instance ToHeaders PutLogEvents
+
+instance ToJSON PutLogEvents where
+    toJSON PutLogEvents{..} = object
+        [ "logGroupName"  .= _pleLogGroupName
+        , "logStreamName" .= _pleLogStreamName
+        , "logEvents"     .= _pleLogEvents
+        , "sequenceToken" .= _pleSequenceToken
+        ]
+
+instance AWSRequest PutLogEvents where
+    type Sv PutLogEvents = CloudWatchLogs
+    type Rs PutLogEvents = PutLogEventsResponse
+
+    request  = post "PutLogEvents"
+    response = jsonResponse
+
+instance FromJSON PutLogEventsResponse where
+    parseJSON = withObject "PutLogEventsResponse" $ \o -> PutLogEventsResponse
+        <$> o .:? "nextSequenceToken"
+
+{-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE NoImplicitPrelude  #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TypeFamilies       #-}
+{-# LANGUAGE TypeOperators      #-}
+
+{-# OPTIONS_GHC -fno-warn-duplicate-exports #-}
+{-# OPTIONS_GHC -fno-warn-unused-binds      #-}
+{-# OPTIONS_GHC -fno-warn-unused-imports    #-}
+
+-- |
+-- Module      : Network.Google.Resource.GamesConfiguration.AchievementConfigurations.Get
+-- Copyright   : (c) 2015-2016 Brendan Hay
+-- License     : Mozilla Public License, v. 2.0.
+-- Maintainer  : Brendan Hay <brendan.g.hay@gmail.com>
+-- Stability   : auto-generated
+-- Portability : non-portable (GHC extensions)
+--
+-- Retrieves the metadata of the achievement configuration with the given
+-- ID.
+--
+-- /See:/ <https://developers.google.com/games/ Google Play Game Services Publishing API Reference> for @gamesConfiguration.achievementConfigurations.get@.
+module Network.Google.Resource.GamesConfiguration.AchievementConfigurations.Get
+    (
+    -- * REST Resource
+      AchievementConfigurationsGetResource
+
+    -- * Creating a Request
+    , achievementConfigurationsGet
+    , AchievementConfigurationsGet
+
+    -- * Request Lenses
+    , acgXgafv
+    , acgUploadProtocol
+    , acgAchievementId
+    , acgAccessToken
+    , acgUploadType
+    , acgCallback
+    ) where
+
+import Network.Google.GamesConfiguration.Types
+import Network.Google.Prelude
+
+-- | A resource alias for @gamesConfiguration.achievementConfigurations.get@ method which the
+-- 'AchievementConfigurationsGet' request conforms to.
+type AchievementConfigurationsGetResource =
+     "games" :>
+       "v1configuration" :>
+         "achievements" :>
+           Capture "achievementId" Text :>
+             QueryParam "$.xgafv" Xgafv :>
+               QueryParam "upload_protocol" Text :>
+                 QueryParam "access_token" Text :>
+                   QueryParam "uploadType" Text :>
+                     QueryParam "callback" Text :>
+                       QueryParam "alt" AltJSON :>
+                         Get '[JSON] AchievementConfiguration
+
+-- | Retrieves the metadata of the achievement configuration with the given
+-- ID.
+--
+-- /See:/ 'achievementConfigurationsGet' smart constructor.
+data AchievementConfigurationsGet =
+  AchievementConfigurationsGet'
+    { _acgXgafv :: !(Maybe Xgafv)
+    , _acgUploadProtocol :: !(Maybe Text)
+    , _acgAchievementId :: !Text
+    , _acgAccessToken :: !(Maybe Text)
+    , _acgUploadType :: !(Maybe Text)
+    , _acgCallback :: !(Maybe Text)
+    }
+  deriving (Eq, Show, Data, Typeable, Generic)
+
+
+-- | Creates a value of 'AchievementConfigurationsGet' with the minimum fields required to make a request.
+--
+-- Use one of the following lenses to modify other fields as desired:
+--
+-- * 'acgXgafv'
+--
+-- * 'acgUploadProtocol'
+--
+-- * 'acgAchievementId'
+--
+-- * 'acgAccessToken'
+--
+-- * 'acgUploadType'
+--
+-- * 'acgCallback'
+achievementConfigurationsGet
+    :: Text -- ^ 'acgAchievementId'
+    -> AchievementConfigurationsGet
+achievementConfigurationsGet pAcgAchievementId_ =
+  AchievementConfigurationsGet'
+    { _acgXgafv = Nothing
+    , _acgUploadProtocol = Nothing
+    , _acgAchievementId = pAcgAchievementId_
+    , _acgAccessToken = Nothing
+    , _acgUploadType = Nothing
+    , _acgCallback = Nothing
+    }
+
+
+-- | V1 error format.
+acgXgafv :: Lens' AchievementConfigurationsGet (Maybe Xgafv)
+acgXgafv = lens _acgXgafv (\ s a -> s{_acgXgafv = a})
+
+-- | Upload protocol for media (e.g. \"raw\", \"multipart\").
+acgUploadProtocol :: Lens' AchievementConfigurationsGet (Maybe Text)
+acgUploadProtocol
+  = lens _acgUploadProtocol
+      (\ s a -> s{_acgUploadProtocol = a})
+
+-- | The ID of the achievement used by this method.
+acgAchievementId :: Lens' AchievementConfigurationsGet Text
+acgAchievementId
+  = lens _acgAchievementId
+      (\ s a -> s{_acgAchievementId = a})
+
+-- | OAuth access token.
+acgAccessToken :: Lens' AchievementConfigurationsGet (Maybe Text)
+acgAccessToken
+  = lens _acgAccessToken
+      (\ s a -> s{_acgAccessToken = a})
+
+-- | Legacy upload protocol for media (e.g. \"media\", \"multipart\").
+acgUploadType :: Lens' AchievementConfigurationsGet (Maybe Text)
+acgUploadType
+  = lens _acgUploadType
+      (\ s a -> s{_acgUploadType = a})
+
+-- | JSONP
+acgCallback :: Lens' AchievementConfigurationsGet (Maybe Text)
+acgCallback
+  = lens _acgCallback (\ s a -> s{_acgCallback = a})
+
+instance GoogleRequest AchievementConfigurationsGet
+         where
+        type Rs AchievementConfigurationsGet =
+             AchievementConfiguration
+        type Scopes AchievementConfigurationsGet =
+             '["https://www.googleapis.com/auth/androidpublisher"]
+        requestClient AchievementConfigurationsGet'{..}
+          = go _acgAchievementId _acgXgafv _acgUploadProtocol
+              _acgAccessToken
+              _acgUploadType
+              _acgCallback
+              (Just AltJSON)
+              gamesConfigurationService
+          where go
+                  = buildClient
+                      (Proxy :: Proxy AchievementConfigurationsGetResource)
+                      mempty
+
+{-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE NoImplicitPrelude  #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TypeFamilies       #-}
+{-# LANGUAGE TypeOperators      #-}
+
+{-# OPTIONS_GHC -fno-warn-duplicate-exports #-}
+{-# OPTIONS_GHC -fno-warn-unused-binds      #-}
+{-# OPTIONS_GHC -fno-warn-unused-imports    #-}
+
+-- |
+-- Module      : Network.Google.Resource.Storage.Objects.Update
+-- Copyright   : (c) 2015-2016 Brendan Hay
+-- License     : Mozilla Public License, v. 2.0.
+-- Maintainer  : Brendan Hay <brendan.g.hay@gmail.com>
+-- Stability   : auto-generated
+-- Portability : non-portable (GHC extensions)
+--
+-- Updates an object\'s metadata.
+--
+-- /See:/ <https://developers.google.com/storage/docs/json_api/ Cloud Storage JSON API Reference> for @storage.objects.update@.
+module Network.Google.Resource.Storage.Objects.Update
+    (
+    -- * REST Resource
+      ObjectsUpdateResource
+
+    -- * Creating a Request
+    , objectsUpdate
+    , ObjectsUpdate
+
+    -- * Request Lenses
+    , ouIfMetagenerationMatch
+    , ouIfGenerationNotMatch
+    , ouIfGenerationMatch
+    , ouPredefinedACL
+    , ouBucket
+    , ouPayload
+    , ouUserProject
+    , ouIfMetagenerationNotMatch
+    , ouObject
+    , ouProjection
+    , ouProvisionalUserProject
+    , ouGeneration
+    ) where
+
+import Network.Google.Prelude
+import Network.Google.Storage.Types
+
+-- | A resource alias for @storage.objects.update@ method which the
+-- 'ObjectsUpdate' request conforms to.
+type ObjectsUpdateResource =
+     "storage" :>
+       "v1" :>
+         "b" :>
+           Capture "bucket" Text :>
+             "o" :>
+               Capture "object" Text :>
+                 QueryParam "ifMetagenerationMatch" (Textual Int64) :>
+                   QueryParam "ifGenerationNotMatch" (Textual Int64) :>
+                     QueryParam "ifGenerationMatch" (Textual Int64) :>
+                       QueryParam "predefinedAcl" ObjectsUpdatePredefinedACL
+                         :>
+                         QueryParam "userProject" Text :>
+                           QueryParam "ifMetagenerationNotMatch" (Textual Int64)
+                             :>
+                             QueryParam "projection" ObjectsUpdateProjection :>
+                               QueryParam "provisionalUserProject" Text :>
+                                 QueryParam "generation" (Textual Int64) :>
+                                   QueryParam "alt" AltJSON :>
+                                     ReqBody '[JSON] Object :>
+                                       Put '[JSON] Object
+
+-- | Updates an object\'s metadata.
+--
+-- /See:/ 'objectsUpdate' smart constructor.
+data ObjectsUpdate =
+  ObjectsUpdate'
+    { _ouIfMetagenerationMatch :: !(Maybe (Textual Int64))
+    , _ouIfGenerationNotMatch :: !(Maybe (Textual Int64))
+    , _ouIfGenerationMatch :: !(Maybe (Textual Int64))
+    , _ouPredefinedACL :: !(Maybe ObjectsUpdatePredefinedACL)
+    , _ouBucket :: !Text
+    , _ouPayload :: !Object
+    , _ouUserProject :: !(Maybe Text)
+    , _ouIfMetagenerationNotMatch :: !(Maybe (Textual Int64))
+    , _ouObject :: !Text
+    , _ouProjection :: !(Maybe ObjectsUpdateProjection)
+    , _ouProvisionalUserProject :: !(Maybe Text)
+    , _ouGeneration :: !(Maybe (Textual Int64))
+    }
+  deriving (Eq, Show, Data, Typeable, Generic)
+
+
+-- | Creates a value of 'ObjectsUpdate' with the minimum fields required to make a request.
+--
+-- Use one of the following lenses to modify other fields as desired:
+--
+-- * 'ouIfMetagenerationMatch'
+--
+-- * 'ouIfGenerationNotMatch'
+--
+-- * 'ouIfGenerationMatch'
+--
+-- * 'ouPredefinedACL'
+--
+-- * 'ouBucket'
+--
+-- * 'ouPayload'
+--
+-- * 'ouUserProject'
+--
+-- * 'ouIfMetagenerationNotMatch'
+--
+-- * 'ouObject'
+--
+-- * 'ouProjection'
+--
+-- * 'ouProvisionalUserProject'
+--
+-- * 'ouGeneration'
+objectsUpdate
+    :: Text -- ^ 'ouBucket'
+    -> Object -- ^ 'ouPayload'
+    -> Text -- ^ 'ouObject'
+    -> ObjectsUpdate
+objectsUpdate pOuBucket_ pOuPayload_ pOuObject_ =
+  ObjectsUpdate'
+    { _ouIfMetagenerationMatch = Nothing
+    , _ouIfGenerationNotMatch = Nothing
+    , _ouIfGenerationMatch = Nothing
+    , _ouPredefinedACL = Nothing
+    , _ouBucket = pOuBucket_
+    , _ouPayload = pOuPayload_
+    , _ouUserProject = Nothing
+    , _ouIfMetagenerationNotMatch = Nothing
+    , _ouObject = pOuObject_
+    , _ouProjection = Nothing
+    , _ouProvisionalUserProject = Nothing
+    , _ouGeneration = Nothing
+    }
+
+
+-- | Makes the operation conditional on whether the object\'s current
+-- metageneration matches the given value.
+ouIfMetagenerationMatch :: Lens' ObjectsUpdate (Maybe Int64)
+ouIfMetagenerationMatch
+  = lens _ouIfMetagenerationMatch
+      (\ s a -> s{_ouIfMetagenerationMatch = a})
+      . mapping _Coerce
+
+-- | Makes the operation conditional on whether the object\'s current
+-- generation does not match the given value. If no live object exists, the
+-- precondition fails. Setting to 0 makes the operation succeed only if
+-- there is a live version of the object.
+ouIfGenerationNotMatch :: Lens' ObjectsUpdate (Maybe Int64)
+ouIfGenerationNotMatch
+  = lens _ouIfGenerationNotMatch
+      (\ s a -> s{_ouIfGenerationNotMatch = a})
+      . mapping _Coerce
+
+-- | Makes the operation conditional on whether the object\'s current
+-- generation matches the given value. Setting to 0 makes the operation
+-- succeed only if there are no live versions of the object.
+ouIfGenerationMatch :: Lens' ObjectsUpdate (Maybe Int64)
+ouIfGenerationMatch
+  = lens _ouIfGenerationMatch
+      (\ s a -> s{_ouIfGenerationMatch = a})
+      . mapping _Coerce
+
+-- | Apply a predefined set of access controls to this object.
+ouPredefinedACL :: Lens' ObjectsUpdate (Maybe ObjectsUpdatePredefinedACL)
+ouPredefinedACL
+  = lens _ouPredefinedACL
+      (\ s a -> s{_ouPredefinedACL = a})
+
+-- | Name of the bucket in which the object resides.
+ouBucket :: Lens' ObjectsUpdate Text
+ouBucket = lens _ouBucket (\ s a -> s{_ouBucket = a})
+
+-- | Multipart request metadata.
+ouPayload :: Lens' ObjectsUpdate Object
+ouPayload
+  = lens _ouPayload (\ s a -> s{_ouPayload = a})
+
+-- | The project to be billed for this request. Required for Requester Pays
+-- buckets.
+ouUserProject :: Lens' ObjectsUpdate (Maybe Text)
+ouUserProject
+  = lens _ouUserProject
+      (\ s a -> s{_ouUserProject = a})
+
+-- | Makes the operation conditional on whether the object\'s current
+-- metageneration does not match the given value.
+ouIfMetagenerationNotMatch :: Lens' ObjectsUpdate (Maybe Int64)
+ouIfMetagenerationNotMatch
+  = lens _ouIfMetagenerationNotMatch
+      (\ s a -> s{_ouIfMetagenerationNotMatch = a})
+      . mapping _Coerce
+
+-- | Name of the object. For information about how to URL encode object names
+-- to be path safe, see Encoding URI Path Parts.
+ouObject :: Lens' ObjectsUpdate Text
+ouObject = lens _ouObject (\ s a -> s{_ouObject = a})
+
+-- | Set of properties to return. Defaults to full.
+ouProjection :: Lens' ObjectsUpdate (Maybe ObjectsUpdateProjection)
+ouProjection
+  = lens _ouProjection (\ s a -> s{_ouProjection = a})
+
+-- | The project to be billed for this request if the target bucket is
+-- requester-pays bucket.
+ouProvisionalUserProject :: Lens' ObjectsUpdate (Maybe Text)
+ouProvisionalUserProject
+  = lens _ouProvisionalUserProject
+      (\ s a -> s{_ouProvisionalUserProject = a})
+
+-- | If present, selects a specific revision of this object (as opposed to
+-- the latest version, the default).
+ouGeneration :: Lens' ObjectsUpdate (Maybe Int64)
+ouGeneration
+  = lens _ouGeneration (\ s a -> s{_ouGeneration = a})
+      . mapping _Coerce
+
+instance GoogleRequest ObjectsUpdate where
+        type Rs ObjectsUpdate = Object
+        type Scopes ObjectsUpdate =
+             '["https://www.googleapis.com/auth/cloud-platform",
+               "https://www.googleapis.com/auth/devstorage.full_control"]
+        requestClient ObjectsUpdate'{..}
+          = go _ouBucket _ouObject _ouIfMetagenerationMatch
+              _ouIfGenerationNotMatch
+              _ouIfGenerationMatch
+              _ouPredefinedACL
+              _ouUserProject
+              _ouIfMetagenerationNotMatch
+              _ouProjection
+              _ouProvisionalUserProject
+              _ouGeneration
+              (Just AltJSON)
+              _ouPayload
+              storageService
+          where go
+                  = buildClient (Proxy :: Proxy ObjectsUpdateResource)
+                      mempty
+
+{-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE NoImplicitPrelude  #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TypeFamilies       #-}
+{-# LANGUAGE TypeOperators      #-}
+
+{-# OPTIONS_GHC -fno-warn-duplicate-exports #-}
+{-# OPTIONS_GHC -fno-warn-unused-binds      #-}
+{-# OPTIONS_GHC -fno-warn-unused-imports    #-}
+
+-- |
+-- Module      : Network.Google.Resource.Analytics.Management.WebProperties.Update
+-- Copyright   : (c) 2015-2016 Brendan Hay
+-- License     : Mozilla Public License, v. 2.0.
+-- Maintainer  : Brendan Hay <brendan.g.hay@gmail.com>
+-- Stability   : auto-generated
+-- Portability : non-portable (GHC extensions)
+--
+-- Updates an existing web property.
+--
+-- /See:/ <https://developers.google.com/analytics/ Google Analytics API Reference> for @analytics.management.webproperties.update@.
+module Network.Google.Resource.Analytics.Management.WebProperties.Update
+    (
+    -- * REST Resource
+      ManagementWebPropertiesUpdateResource
+
+    -- * Creating a Request
+    , managementWebPropertiesUpdate
+    , ManagementWebPropertiesUpdate
+
+    -- * Request Lenses
+    , mwpuWebPropertyId
+    , mwpuPayload
+    , mwpuAccountId
+    ) where
+
+import           Network.Google.Analytics.Types
+import           Network.Google.Prelude
+
+-- | A resource alias for @analytics.management.webproperties.update@ method which the
+-- 'ManagementWebPropertiesUpdate' request conforms to.
+type ManagementWebPropertiesUpdateResource =
+     "analytics" :>
+       "v3" :>
+         "management" :>
+           "accounts" :>
+             Capture "accountId" Text :>
+               "webproperties" :>
+                 Capture "webPropertyId" Text :>
+                   QueryParam "alt" AltJSON :>
+                     ReqBody '[JSON] WebProperty :>
+                       Put '[JSON] WebProperty
+
+-- | Updates an existing web property.
+--
+-- /See:/ 'managementWebPropertiesUpdate' smart constructor.
+data ManagementWebPropertiesUpdate = ManagementWebPropertiesUpdate'
+    { _mwpuWebPropertyId :: !Text
+    , _mwpuPayload       :: !WebProperty
+    , _mwpuAccountId     :: !Text
+    } deriving (Eq,Show,Data,Typeable,Generic)
+
+-- | Creates a value of 'ManagementWebPropertiesUpdate' with the minimum fields required to make a request.
+--
+-- Use one of the following lenses to modify other fields as desired:
+--
+-- * 'mwpuWebPropertyId'
+--
+-- * 'mwpuPayload'
+--
+-- * 'mwpuAccountId'
+managementWebPropertiesUpdate
+    :: Text -- ^ 'mwpuWebPropertyId'
+    -> WebProperty -- ^ 'mwpuPayload'
+    -> Text -- ^ 'mwpuAccountId'
+    -> ManagementWebPropertiesUpdate
+managementWebPropertiesUpdate pMwpuWebPropertyId_ pMwpuPayload_ pMwpuAccountId_ =
+    ManagementWebPropertiesUpdate'
+    { _mwpuWebPropertyId = pMwpuWebPropertyId_
+    , _mwpuPayload = pMwpuPayload_
+    , _mwpuAccountId = pMwpuAccountId_
+    }
+
+-- | Web property ID
+mwpuWebPropertyId :: Lens' ManagementWebPropertiesUpdate Text
+mwpuWebPropertyId
+  = lens _mwpuWebPropertyId
+      (\ s a -> s{_mwpuWebPropertyId = a})
+
+-- | Multipart request metadata.
+mwpuPayload :: Lens' ManagementWebPropertiesUpdate WebProperty
+mwpuPayload
+  = lens _mwpuPayload (\ s a -> s{_mwpuPayload = a})
+
+-- | Account ID to which the web property belongs
+mwpuAccountId :: Lens' ManagementWebPropertiesUpdate Text
+mwpuAccountId
+  = lens _mwpuAccountId
+      (\ s a -> s{_mwpuAccountId = a})
+
+instance GoogleRequest ManagementWebPropertiesUpdate
+         where
+        type Rs ManagementWebPropertiesUpdate = WebProperty
+        type Scopes ManagementWebPropertiesUpdate =
+             '["https://www.googleapis.com/auth/analytics.edit"]
+        requestClient ManagementWebPropertiesUpdate'{..}
+          = go _mwpuAccountId _mwpuWebPropertyId (Just AltJSON)
+              _mwpuPayload
+              analyticsService
+          where go
+                  = buildClient
+                      (Proxy ::
+                         Proxy ManagementWebPropertiesUpdateResource)
+                      mempty
+
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC  -fno-warn-incomplete-patterns #-}
+
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+
+module PontariusService.Types where
+
+import           Control.Applicative
+import           Control.Lens
+import           Control.Monad.Reader
+import           DBus
+import           DBus.Signal
+import           DBus.Types
+import           Data.ByteString (ByteString)
+import           Data.Set (Set)
+import qualified Data.Set as Set
+import           Data.Text (Text)
+import qualified Data.Text as Text
+import           Data.Time.Clock (UTCTime)
+import           Data.Time.Clock.POSIX as Time
+import           Data.Typeable
+import           Data.UUID (UUID)
+import qualified Data.UUID as UUID
+import           Data.Word
+import qualified Network.Xmpp as Xmpp
+
+
+type SSID = ByteString
+
+data BatchLink = BatchLinkIgnore
+               | BatchLinkExisting UUID
+               | BatchLinkNewContact Text
+
+instance Representable BatchLink where
+  type RepType BatchLink = 'TypeStruct '[ 'DBusSimpleType 'TypeByte
+                                        , 'DBusSimpleType 'TypeString]
+  toRep BatchLinkIgnore = DBVStruct (StructCons
+                                    (DBVByte 0) (StructSingleton (DBVString "")))
+  toRep (BatchLinkExisting uuid)
+    = DBVStruct (StructCons (DBVByte 1) (StructSingleton (toRep uuid)))
+  toRep (BatchLinkNewContact name)
+    = DBVStruct (StructCons (DBVByte 2) (StructSingleton (toRep name)))
+  fromRep
+    (DBVStruct (StructCons (DBVByte 0) (StructSingleton _)))
+    = Just BatchLinkIgnore
+  fromRep (DBVStruct (StructCons (DBVByte 1) (StructSingleton uuid)))
+    = BatchLinkExisting <$> (fromRep uuid)
+  fromRep (DBVStruct (StructCons (DBVByte 2) (StructSingleton (DBVString name))))
+    = Just $ BatchLinkNewContact name
+
+
+data PontariusState = CredentialsUnset
+                    | IdentityNotFound
+                    | IdentitiesAvailable
+                    | CreatingIdentity
+                    | Disabled
+                    | Authenticating
+                    | Authenticated
+                    | AuthenticationDenied
+                      deriving (Show, Eq)
+
+data AccountState = AccountEnabled
+                  | AccountDisabled
+                    deriving (Show, Eq)
+
+data PeerStatus = Unavailable
+                | Available
+                  deriving (Show, Eq)
+
+instance Representable UTCTime where
+    type RepType UTCTime = 'DBusSimpleType 'TypeUInt32
+    toRep = DBVUInt32 . round . utcTimeToPOSIXSeconds
+    fromRep (DBVUInt32 x) = Just . posixSecondsToUTCTime $ fromIntegral x
+
+instance DBus.Representable Xmpp.Jid where
+    type RepType Xmpp.Jid = 'DBusSimpleType 'TypeString
+    toRep = DBus.DBVString . Xmpp.jidToText
+    fromRep (DBus.DBVString s) = Xmpp.jidFromText s
+
+instance (Ord a, DBus.Representable a) => DBus.Representable (Set a) where
+    type RepType (Set a) = RepType [a]
+    toRep = toRep . Set.toList
+    fromRep = fmap Set.fromList . fromRep
+
+instance Representable (Maybe KeyID) where
+    type RepType (Maybe KeyID) = RepType KeyID
+    toRep Nothing = toRep Text.empty
+    toRep (Just k) = toRep k
+    fromRep v = case fromRep v of
+        Nothing -> Nothing
+        Just v' | Text.null v' -> Just Nothing
+                | otherwise -> Just (Just v')
+
+instance Representable (Maybe UTCTime) where
+    type RepType (Maybe UTCTime) = RepType UTCTime
+    toRep Nothing = toRep (0 :: Word32)
+    toRep (Just t) = toRep t
+    fromRep v = case fromRep v of
+        Nothing -> Nothing
+        Just t' | t' == (0 :: Word32) -> Just Nothing
+                | otherwise -> Just . Just $ posixSecondsToUTCTime
+                               $ fromIntegral t'
+
+type KeyID = Text
+type SessionID = ByteString
+
+data ConnectionStatus = Connected
+                      | Disconnected
+                      deriving (Show, Eq, Ord)
+
+data InitResponse = KeyOK
+                  | SelectKey
+
+data Ent = Ent { entityJid :: Xmpp.Jid
+               , entityDisplayName :: Text
+               , entityDescription :: Text
+               } deriving (Show, Typeable)
+
+data AkeEvent = AkeEvent { akeEventStart :: UTCTime
+                         , akeEventSuccessfull :: Bool
+                         , akeEventPeerJid :: Xmpp.Jid
+                         , akeEventOurJid :: Xmpp.Jid
+                         , akeEventPeerkeyID :: KeyID
+                         , akeEventOurkeyID :: KeyID
+                         } deriving (Show, Eq)
+
+data ChallengeEvent =
+    ChallengeEvent { challengeEventChallengeOutgoing :: Bool
+                   , challengeEventStarted :: UTCTime
+                   , challengeEventCompleted :: UTCTime
+                   , challengeEventQuestion :: Text
+                   , challengeEventResult :: Text
+                   } deriving (Show, Eq)
+
+data RevocationEvent =
+    RevocationEvent { revocationEventKeyID :: KeyID
+                    , revocationEventTime :: UTCTime
+                    }
+
+data RevocationSignalEvent =
+    RevocationlEvent { revocationSignalEventKeyID :: KeyID
+                          , revocationSignalEventTime :: UTCTime
+                          }
+
+makePrisms ''PontariusState
+makeRepresentable ''PontariusState
+
+makePrisms ''AccountState
+makeRepresentable ''AccountState
+
+makeRepresentable ''RevocationSignalEvent
+makeRepresentable ''ConnectionStatus
+makeRepresentable ''InitResponse
+makeRepresentable ''Ent
+makeRepresentable ''AkeEvent
+makeRepresentable ''ChallengeEvent
+makeRepresentable ''RevocationEvent
+makeRepresentable ''PeerStatus
+
+instance DBus.Representable UUID where
+    type RepType UUID = RepType Text
+    toRep = toRep . Text.pack . UUID.toString
+    fromRep = UUID.fromString . Text.unpack <=< fromRep
+
+data AddPeerFailed =
+    AddPeerFailed { addPeerFailedPeer :: !Xmpp.Jid
+                  , addPeerFailedReason :: !Text
+                  } deriving (Show)
+
+makeRepresentable ''AddPeerFailed
+makeLensesWith camelCaseFields ''AddPeerFailed
+
+data RemovePeerFailed =
+    RemovePeerFailed { removePeerFailedPeer :: !Xmpp.Jid
+                     , removePeerFailedReason :: !Text
+                     } deriving (Show)
+
+makeRepresentable ''RemovePeerFailed
+makeLensesWith camelCaseFields ''RemovePeerFailed
+
+-- | This module provides the data type and parser for a trait file
+
+module Trait (
+  Trait(..)
+  , defaultTrait
+  , trait
+  ) where
+
+import Maker
+import Modifier
+import Scoped(Label)
+
+data Trait = Trait {
+  trait_name :: Label
+  , agnatic :: Bool
+  , birth :: Double -- ^ Chance of being assigned on birth. Default 0
+  , cached :: Bool
+  , cannot_inherit :: Bool
+  , cannot_marry :: Bool
+  , caste_tier :: Maybe Int -- ^ The trait is a caste trait, and this
+                  -- defines the order of the castes.
+  , customizer :: Bool -- ^ Blocks the trait from being available in the Designer
+  , education :: Bool
+  , immortal :: Bool
+  , in_hiding :: Bool
+  , inbred :: Bool
+  , incapacitating :: Bool
+  , inherit_chance :: Double
+  , is_epidemic :: Bool
+  , is_health :: Bool
+  , is_illness :: Bool
+  , leader :: Bool
+  , leadership_traits :: Maybe Int
+  , lifestyle :: Bool
+  , opposites :: [Label]
+  , personality :: Bool
+  , prevent_decadence :: Bool
+  , priest :: Bool
+  , pilgrimage :: Bool
+  , random :: Bool
+  , rebel_inherited :: Bool -- ^ Unknown purpose
+  , religious :: Bool
+  , religious_branch :: Maybe Label
+  , ruler_designer_cost :: Maybe Int -- ^ The postive cost in the Ruler Designer
+  , tolerates :: [Label] -- ^ A list of the religion groups tolerated by this character
+  , modifiers :: [Modifier]
+  } deriving (Eq, Ord, Show)
+
+trait :: Maker Trait
+trait = Trait
+        <$> label key
+        <*> boolProp "agnatic"
+        <*> ((number ~@ "birth") `defaultingTo` 0)
+        <*> boolProp "cached"
+        <*> boolProp "cannot_inherit"
+        <*> boolProp "cannot_marry"
+        <*> intProp "caste_tier"
+        <*> boolProp "customizer"
+        <*> boolProp "education"
+        <*> boolProp "immortal"
+        <*> boolProp "in_hiding"
+        <*> boolProp "inbred"
+        <*> boolProp "incapacitating"
+        <*> (number ~@ "inherit_chance") `defaultingTo` 0
+        <*> boolProp "is_epidemic"
+        <*> boolProp "is_health"
+        <*> boolProp "is_illness"
+        <*> boolProp "leader"
+        <*> intProp "leadership_traits"
+        <*> boolProp "lifestyle"
+        <*> (opposites @@ "opposites") `defaultingTo` []
+        <*> boolProp "personality"
+        <*> boolProp "prevent_decadence"
+        <*> boolProp "priest"
+        <*> boolProp "pilgrimage"
+        <*> boolProp "random"
+        <*> boolProp "rebel_inherited"
+        <*> boolProp "religious"
+        <*> fetchString @? "religious_branch"
+        <*> intProp "ruler_designer_cost"
+        <*> tolerations
+        <*> tryMap modifier
+  where boolProp key = ((fetchBool @@ key) `defaultingTo` False) <?> key
+        intProp :: Label → Maker (Maybe Int)
+        intProp key = fmap round <$> number ~? key <?> key
+        opposites = error "opposite traits are not implemented"
+        tolerations = return []
+
+defaultTrait :: Trait
+defaultTrait =
+  Trait { trait_name = undefined, agnatic = False, birth = 0, cached = False
+        , cannot_inherit = False, cannot_marry = False, caste_tier = Nothing
+        , customizer = False, education = False, immortal = False
+        , in_hiding = False, inbred = False, incapacitating = False
+        , inherit_chance = 0, is_epidemic = False, is_health = False
+        , is_illness = False, leader = False, leadership_traits = Nothing
+        , lifestyle = False, opposites = [], personality = False
+        , prevent_decadence = False, priest = False, pilgrimage = False
+        , random = False, rebel_inherited = False, religious = False
+        , religious_branch = Nothing, ruler_designer_cost = Nothing
+        , tolerates = [], modifiers = [] }
+
+-- Copyright (C) 2016-2017 Red Hat, Inc.
+--
+-- This library is free software; you can redistribute it and/or
+-- modify it under the terms of the GNU Lesser General Public
+-- License as published by the Free Software Foundation; either
+-- version 2.1 of the License, or (at your option) any later version.
+--
+-- This library is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+-- Lesser General Public License for more details.
+--
+-- You should have received a copy of the GNU Lesser General Public
+-- License along with this library; if not, see <http://www.gnu.org/licenses/>.
+
+{-# LANGUAGE OverloadedStrings #-}
+
+module BDCS.RPM.Sources(mkSource)
+ where
+
+import           Database.Esqueleto(Key)
+import qualified Data.Text as T
+
+import BDCS.DB(Projects, Sources(..))
+import BDCS.Exceptions(DBException(..), throwIfNothing)
+import RPM.Tags(Tag, findStringTag)
+
+mkSource :: [Tag] -> Key Projects -> Sources
+mkSource tags projectId = let
+    license = T.pack $ findStringTag "License" tags `throwIfNothing` MissingRPMTag "License"
+    version = T.pack $ findStringTag "Version" tags `throwIfNothing` MissingRPMTag "Version"
+
+    -- FIXME:  Where to get this from?
+    source_ref = "SOURCE_REF"
+ in
+    Sources projectId license version source_ref
