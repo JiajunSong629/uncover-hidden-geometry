@@ -13,3 +13,4 @@ __pycache__/
 
 7B/
 .venv/
+.uncover/

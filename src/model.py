@@ -437,6 +437,32 @@ class GPT(nn.Module):
         hiddens = np.array(hiddens)
         return hiddens
 
+    ## NEW
+    @torch.no_grad()
+    def generate_hiddens_all(self, idx):
+        device = idx.device
+        self.to(device)
+
+        h = []
+        t = self.transformer.wte(idx)
+        pos = torch.arange(0, idx.size(1), dtype=torch.long, device="cuda").unsqueeze(0)
+        p = self.transformer.wpe(pos)
+        x = self.transformer.drop(t + p)
+        for i, block in enumerate(self.transformer.h):
+            # x = x + self.attn(self.ln_1(x))
+            # x = x + self.mlp(self.ln_2(x))
+            xs = [
+                x,
+                x + block.attn(block.ln_1(x)),
+            ]
+            xs = [[xx.numpy(force=True) for xx in xs]]
+
+            h += xs
+            x = x + block.attn(block.ln_1(x))
+            x = x + block.mlp(block.ln_2(x))
+
+        return np.array(h)
+
 
 class Bert(nn.Module):
     """
