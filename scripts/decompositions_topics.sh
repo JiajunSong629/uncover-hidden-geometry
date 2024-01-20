@@ -1,8 +1,8 @@
 #!/bin/bash
 
-MODELS="bert gpt2 bloom"
-DATASETS="wikitext_topics openwebtext_topics github_topics"
-PROJ_DIR="out/topics"
+MODELS="llama2"
+DATASETS="openwebtext_topics github_topics" # wikitext_topics"
+PROJ_DIR="out-topics-llama2"
 SEED=1234
 
 for MODEL in $MODELS

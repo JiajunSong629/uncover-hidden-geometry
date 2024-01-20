@@ -27,7 +27,6 @@ id_start, id_end = 1, 512
 ckpt = "ckpt"
 embd_normalize = "none"
 split = "train"
-out_dir = "out"
 config_keys = [
     k
     for k, v in globals().items()

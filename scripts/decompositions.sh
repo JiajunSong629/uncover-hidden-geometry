@@ -1,8 +1,8 @@
 #!/bin/bash
 
-MODELS="gpt2 bert bloom llama2"
+MODELS="bloom"
 DATASETS="wikitext openwebtext github"
-PROJ_DIR="out/decompositions"
+PROJ_DIR="out-bloomtest"
 SEED=1234
 
 for MODEL in $MODELS

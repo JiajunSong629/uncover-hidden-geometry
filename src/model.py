@@ -593,7 +593,9 @@ class Llama2:
         )
         tokenizer = Tokenizer(model_path=tokenizer_path)
         model_args.vocab_size = tokenizer.n_words
+
         torch.set_default_tensor_type(torch.cuda.HalfTensor)
+
         model = Transformer(model_args)
         model.load_state_dict(checkpoint, strict=False)
         print(f"Loaded in {time.time() - start_time:.2f} seconds")
@@ -613,5 +615,6 @@ class Llama2:
 
     @torch.no_grad()
     def generate_hiddens(self, idx):
+        self.model.to(idx.device)
         hiddens = self.model.generate_hiddens(idx)
         return np.array(hiddens)

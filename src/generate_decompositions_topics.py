@@ -6,7 +6,7 @@ from src.model import GPT, Bert, Llama2, Bloom
 
 dataset = "openwebtext_topics"
 out_dir = "out/topics/openwebtext_topics/gpt2"
-load_dir = "out/decompositions/openwebtext-gpt2"
+load_dir = "out-llama2test"
 init_from = "gpt2"
 id_start = 1
 id_end = 128
@@ -39,6 +39,19 @@ def get_batch(data, batch_size):
     return x
 
 
+def get_batch_data(data, batch_size, n_batch):
+    assert (
+        len(data) > batch_size * n_batch
+    ), "Length of data should exceed `n_batch`*`batch_size`"
+
+    ix = np.linspace(0, len(data) - block_size, num=batch_size * n_batch, dtype=int)
+    x = torch.stack(
+        [torch.from_numpy((data[i : i + block_size]).astype(np.int64)) for i in ix]
+    )
+    x = x.to(device)
+    return x
+
+
 data_dir = os.path.join("src/data", dataset)
 datum = []
 for file in os.listdir(data_dir):
@@ -54,10 +67,10 @@ for file in os.listdir(data_dir):
 data_rstrip = dataset[: -len(list("_topics"))]
 embd_normalize = "none"
 suffix = f"id1-512_{embd_normalize}_train.npy"
-pos = np.load(os.path.join(load_dir, f"pos_{suffix}"))
+pos = np.load(os.path.join(load_dir, f"{data_rstrip}-{init_from}", f"pos_{suffix}"))
 L, T, C = pos.shape
 mean_vec_by_B = np.memmap(
-    os.path.join(load_dir, f"mean_vec_by_B_{suffix}"),
+    os.path.join(load_dir, f"{data_rstrip}-{init_from}", f"mean_vec_by_B_{suffix}"),
     mode="r",
     dtype=np.float32,
     shape=(L, T, C),
@@ -97,8 +110,9 @@ c_vecs = np.memmap(
 )
 
 for i, data in enumerate(datum):
+    batch_data = get_batch_data(data, batch_size, n_batch)
     for j in tqdm(range(n_batch), desc=f"Batch Progress at topic {i}"):
-        ids = get_batch(data, batch_size)
+        ids = batch_data[j * batch_size : j * batch_size + batch_size]
         hiddens = model.generate_hiddens(ids)
         for layer in range(L):
             embeddings[
