@@ -1,25 +1,4 @@
-
-        
-
-GPT2
-        length of dataset in tokens: 62,117
-        #########################################
-        
-        
-
-BERT
-        length of dataset in tokens: 61,738
-        #########################################
-        
-        
-
-LLAMA2
-        length of dataset in tokens: 73,416
-        #########################################
-        
-        
-
-BLOOM
-        length of dataset in tokens: 62,469
-        #########################################
-        
+GPT2: length of dataset in tokens 316588
+BERT: length of dataset in tokens 315519
+LLAMA2: length of dataset in tokens 373630
+BLOOM: length of dataset in tokens 315980

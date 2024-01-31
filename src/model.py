@@ -18,7 +18,7 @@ from fairscale.nn.model_parallel.initialize import (
     model_parallel_is_initialized,
 )
 
-from src.llama import ModelArgs, Transformer, Tokenizer
+from src.utils.llama import ModelArgs, Transformer, Tokenizer
 
 
 class LayerNorm(nn.Module):
@@ -552,7 +552,7 @@ class Bloom(nn.Module):
 
 class Llama2:
     @staticmethod
-    def llama_build(
+    def build(
         ckpt_dir: str,
         tokenizer_path: str,
         max_seq_len: int,
@@ -594,19 +594,25 @@ class Llama2:
         tokenizer = Tokenizer(model_path=tokenizer_path)
         model_args.vocab_size = tokenizer.n_words
 
-        torch.set_default_tensor_type(torch.cuda.HalfTensor)
+        # torch.set_default_tensor_type(torch.cuda.HalfTensor)
+        torch.set_default_device("cuda")
+        torch.set_default_dtype(torch.float16)
 
         model = Transformer(model_args)
         model.load_state_dict(checkpoint, strict=False)
         print(f"Loaded in {time.time() - start_time:.2f} seconds")
 
+        torch.set_default_dtype(torch.float32)
+
         return model
 
     def __init__(self, max_seq_len, max_batch_size) -> None:
-        ckpt_dir = "/home/jiajun/Documents/llama-2-ckpt/7B"
-        tokenizer_path = "/home/jiajun/Documents/llama-2-ckpt/tokenizer.model"
+        ckpt_dir = os.path.join(os.path.dirname(__file__), "llama-2-ckpt/7B")
+        tokenizer_path = os.path.join(
+            os.path.dirname(__file__), "llama-2-ckpt/tokenizer.model"
+        )
 
-        self.model = Llama2.llama_build(
+        self.model = Llama2.build(
             ckpt_dir=ckpt_dir,
             tokenizer_path=tokenizer_path,
             max_seq_len=max_seq_len,

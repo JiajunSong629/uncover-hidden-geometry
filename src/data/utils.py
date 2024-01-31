@@ -71,7 +71,6 @@ def char_handler(data):
 
 
 def tokenize(tokenizers, data, data_dir):
-    readme = ""
     tokenized_data = {}
     for tokenizer, model_name in zip(
         [
@@ -95,7 +94,6 @@ def tokenize(tokenizers, data, data_dir):
             continue
 
         print(f"Tokenize with {model_name} tokenizer...")
-        # create the train and test splits
         if model_name == "char":
             ids, meta = char_handler(data)
             with open(os.path.join(data_dir, "meta.pkl"), "wb") as f:
@@ -104,13 +102,5 @@ def tokenize(tokenizers, data, data_dir):
             ids = tokenizer(data, return_tensors="pt")["input_ids"][0]
 
         tokenized_data[model_name] = ids
-        readme += f"""
-        \n\n{str.upper(model_name)}
-        length of dataset in tokens: {len(ids):,}
-        #########################################
-        """
-
-    with open(os.path.join(data_dir, "readme"), "w") as f:
-        f.write(readme)
 
     return tokenized_data

@@ -17,12 +17,13 @@ def ranks_and_explained_ratios_and_relative_norm(pos, cvec, global_mean, up_boun
     nseq = B // T
 
     result = np.zeros((L, 4))
-    for l in tqdm(range(L)):
+    for l in tqdm(range(L), desc="Layer:"):
         p = pos[l]
         c = cvec[l]
         g = global_mean[l]
         p_full = np.concatenate([p for _ in range(nseq)])
         m = p_full + c + g
+        m_centered = m - m.mean(0)
 
         psvals = scipy.linalg.svd(p)[1]
         rank = screenNOT(p, up_bound)
@@ -30,7 +31,9 @@ def ranks_and_explained_ratios_and_relative_norm(pos, cvec, global_mean, up_boun
         result[l, 0] = rank
         result[l, 1] = stable_rank(psvals, k=0)
         result[l, 2] = explained_ratio(psvals, rank)
-        result[l, 3] = scipy.linalg.norm(p_full, ord=2) / scipy.linalg.norm(m, ord=2)
+        result[l, 3] = scipy.linalg.norm(p_full, ord=2) / scipy.linalg.norm(
+            m_centered, ord=2
+        )
     return result
 
 
@@ -58,7 +61,7 @@ def avg_similarity_between(context_basis, batch_size=64):
     L, B, C = context_basis.shape
     mask = np.kron(np.eye(B // batch_size), np.ones((batch_size, batch_size)))
     scores = []
-    for layer_idx in range(L):
+    for layer_idx in tqdm(range(L), desc="Layer:"):
         c = context_basis[layer_idx]
         u, s, vt = scipy.linalg.svd(c)
         c = u[:, :20] @ np.diag(s[:20])
@@ -72,7 +75,7 @@ def avg_similarity_within(context_basis, batch_size=64):
     L, B, C = context_basis.shape
     mask = np.kron(np.eye(B // batch_size), np.ones((batch_size, batch_size)))
     scores = []
-    for layer_idx in range(L):
+    for layer_idx in tqdm(range(L), desc="Layer:"):
         c = context_basis[layer_idx]
         u, s, vt = scipy.linalg.svd(c)
         c = u[:, :20] @ np.diag(s[:20])
@@ -86,7 +89,7 @@ def avg_similarity_between_NoPCA(context_basis, batch_size=64):
     L, B, C = context_basis.shape
     mask = np.kron(np.eye(B // batch_size), np.ones((batch_size, batch_size)))
     scores = []
-    for layer_idx in range(L):
+    for layer_idx in tqdm(range(L), desc="Layer:"):
         c = context_basis[layer_idx]
         # u, s, vt = scipy.linalg.svd(c)
         # c = u[:, :20] @ np.diag(s[:20])
@@ -95,11 +98,12 @@ def avg_similarity_between_NoPCA(context_basis, batch_size=64):
         scores.append(np.sum(score) / np.sum(mask == 0))
     return np.array(scores)
 
+
 def avg_similarity_within_NoPCA(context_basis, batch_size=64):
     L, B, C = context_basis.shape
     mask = np.kron(np.eye(B // batch_size), np.ones((batch_size, batch_size)))
     scores = []
-    for layer_idx in range(L):
+    for layer_idx in tqdm(range(L), desc="Layer:"):
         c = context_basis[layer_idx]
         # u, s, vt = scipy.linalg.svd(c)
         # c = u[:, :20] @ np.diag(s[:20])

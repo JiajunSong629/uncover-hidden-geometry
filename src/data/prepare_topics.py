@@ -9,8 +9,6 @@ tokenizers = "gpt2+bloom"
 exec(open("configurator.py").read())  # overrides from command line or config file
 # ---------------------------------------------------------------------------------
 data_dir = os.path.join(os.path.dirname(__file__), dataset)
-print(data_dir)
-
 n_topics = len(
     [f for f in os.listdir(data_dir) if f.startswith("topic") and not f.endswith("bin")]
 )

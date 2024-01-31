@@ -1,8 +1,8 @@
 #!/bin/bash
 
-MODELS="bloom"
-DATASETS="wikitext openwebtext github"
-PROJ_DIR="out-bloomtest"
+MODELS="gpt2" #"bert gpt2 bloom llama2"
+DATASETS="openwebtext" #"openwebtext wikitext github random"
+PROJ_DIR="out"
 SEED=1234
 
 for MODEL in $MODELS
@@ -10,7 +10,7 @@ do
     for DATASET in $DATASETS
     do
         echo "Running decompositions on $DATASET $MODEL"
-        IN="--init_from=$MODEL --dataset=$DATASET --dataset_suffix=_$MODEL.bin"
+        IN="--init_from=$MODEL --dataset=$DATASET --dataset_suffix=$MODEL.bin"
         OUT="--out_dir=${PROJ_DIR}/${DATASET}-${MODEL}"
 
         if [ "$MODEL" == "llama2" ]; then

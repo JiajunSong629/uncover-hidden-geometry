@@ -1,6 +1,6 @@
 DATASETS="shakespeare github openwebtext wikitext"
 TOKENIZERS="gpt2+bert+bloom+llama2"
-STREAMING_SAMPLES=1000
+STREAMING_SAMPLES=5000
 OVERWRITE="True"
 
 for DATASET in $DATASETS

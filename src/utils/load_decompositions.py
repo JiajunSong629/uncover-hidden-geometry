@@ -47,3 +47,12 @@ def load_pos(dataset, model, root_dir="out/decompositions"):
     pos = np.load(os.path.join(data_dir, f"pos_{suffix}"))
 
     return pos
+
+
+def load_pos_cbasis(dataset, model, root_dir):
+    data_dir = os.path.join(root_dir, f"{dataset}-{model}")
+    suffix = "id1-512_none_train.npy"
+    pos = np.load(os.path.join(data_dir, f"pos_{suffix}"))
+    cbasis = np.load(os.path.join(data_dir, f"cbasis_{suffix}"))
+
+    return pos, cbasis

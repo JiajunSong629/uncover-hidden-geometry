@@ -1,8 +1,9 @@
 #!/bin/bash
 
-MODELS="llama2"
-DATASETS="openwebtext_topics github_topics" # wikitext_topics"
-PROJ_DIR="out-topics-llama2"
+MODELS="gpt2 bert bloom llama2"
+DATASETS="wikitext_topics openwebtext_topics github_topics"
+PROJ_DIR="out-topics"
+LOAD_DIR="out"
 SEED=1234
 
 for MODEL in $MODELS
@@ -10,7 +11,7 @@ do
     for DATASET in $DATASETS
     do
         echo "Running decompositions on $DATASET $MODEL"
-        IN="--init_from=$MODEL --dataset=$DATASET"
+        IN="--init_from=$MODEL --dataset=$DATASET --load_dir=${LOAD_DIR}"
         OUT="--out_dir=${PROJ_DIR}/${DATASET}-${MODEL}"
 
         if [ "$MODEL" == "llama2" ]; then

@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def plot(pos, cvec, resid, save_to=None):
+def plot(pos, cvec, resid, save_to=None, only_pos=True):
     L, T, C = pos.shape
     L, S, C = cvec.shape
     nseq = S // T
@@ -20,12 +20,15 @@ def plot(pos, cvec, resid, save_to=None):
         firstk = 60
         p_full, c, r = p_full[:T], c[:T], r[:T]
         p_svals = np.linalg.svd(p_full)[1][:firstk]
-        c_svals = np.linalg.svd(c)[1][:firstk]
-        r_svals = np.linalg.svd(r)[1][:firstk]
-
         ax.plot(np.arange(len(p_svals)), p_svals, marker=".", label="P")
-        ax.plot(np.arange(len(c_svals)), c_svals, marker=".", label="Cvec")
-        ax.plot(np.arange(len(r_svals)), r_svals, marker=".", label="R")
+
+        if not only_pos:
+            c_svals = np.linalg.svd(c)[1][:firstk]
+            r_svals = np.linalg.svd(r)[1][:firstk]
+
+            ax.plot(np.arange(len(c_svals)), c_svals, marker=".", label="Cvec")
+            ax.plot(np.arange(len(r_svals)), r_svals, marker=".", label="R")
+
         ax.set_title(f"Layer: {layer_idx}", weight="bold", fontsize=20)
         ax.set_yscale("log")
         ax.legend()

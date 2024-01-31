@@ -37,8 +37,6 @@ config = {k: globals()[k] for k in config_keys}  # will be useful for logging
 # -----------------------------------------------------------------------------
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
-torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
-torch.backends.cudnn.allow_tf32 = True  # allow tf32 on cudnn
 
 device_type = "cuda" if "cuda" in device else "cpu"  # for later use in torch.autocast
 ptdtype = {
@@ -47,20 +45,30 @@ ptdtype = {
     "float16": torch.float16,
 }[dtype]
 
-data_dir = os.path.join("src/data", dataset)
-train_data = np.memmap(
-    os.path.join(data_dir, f"train{dataset_suffix}"), dtype=np.uint16, mode="r"
-)
-val_data = np.memmap(
-    os.path.join(data_dir, f"val{dataset_suffix}"), dtype=np.uint16, mode="r"
-)
+torch.backends.cuda.matmul.allow_tf32 = True  # allow tf32 on matmul
+torch.backends.cudnn.allow_tf32 = True  # allow tf32 on cudnn
+torch.set_default_dtype(ptdtype)
+
+if dataset != "random":
+    data_dir = os.path.join("src/data", dataset)
+    data = np.memmap(
+        os.path.join(data_dir, f"{dataset_suffix}"),
+        dtype=np.uint16,
+        mode="r",
+    )
+else:
+    data = np.random.randint(
+        low=0,
+        high=30000,
+        size=block_size * batch_size * n_batch,
+    )
+
 
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
 
-def get_batch(split, batch_size):
-    data = train_data if split == "train" else val_data
+def get_batch(batch_size):
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack(
         [torch.from_numpy((data[i : i + block_size]).astype(np.int64)) for i in ix]
@@ -117,7 +125,7 @@ from tqdm import tqdm
 
 # data for pos basis and cbasis
 for i in tqdm(range(n_batch), desc="Get data for pos and global mean"):
-    x, y = get_batch(split, batch_size)
+    x, y = get_batch(batch_size)
     with torch.no_grad():
         hiddens = model.generate_hiddens(x)  # (L, B, T, C)
         if i == 0:

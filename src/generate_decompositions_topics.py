@@ -5,8 +5,8 @@ from tqdm import tqdm
 from src.model import GPT, Bert, Llama2, Bloom
 
 dataset = "openwebtext_topics"
-out_dir = "out/topics/openwebtext_topics/gpt2"
-load_dir = "out-llama2test"
+out_dir = "out-topics"
+load_dir = "out"
 init_from = "gpt2"
 id_start = 1
 id_end = 128
@@ -55,7 +55,7 @@ def get_batch_data(data, batch_size, n_batch):
 data_dir = os.path.join("src/data", dataset)
 datum = []
 for file in os.listdir(data_dir):
-    if file.endswith(f"_{init_from}.bin"):
+    if file.endswith(f"{init_from}.bin"):
         data = np.memmap(
             os.path.join(data_dir, file),
             dtype=np.uint16,

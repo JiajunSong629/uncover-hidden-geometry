@@ -11,5 +11,4 @@ __pycache__/
 *.npy
 *.egg-info/
 
-7B/
-.venv/
+llama-2-ckpt/

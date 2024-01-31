@@ -27,14 +27,17 @@ if __name__ == "__main__":
         data=data,
         data_dir=data_dir,
     )
+
+    log = ""
     for model_name in tokenized_data:
         ids = tokenized_data[model_name]
         n = len(ids)
-        train_ids = ids[: int(n * 0.9)]
-        val_ids = ids[int(n * 0.9) :]
 
         # export to bin files
-        train_ids = np.array(train_ids, dtype=np.uint16)
-        val_ids = np.array(val_ids, dtype=np.uint16)
-        train_ids.tofile(os.path.join(data_dir, f"train_{model_name}.bin"))
-        val_ids.tofile(os.path.join(data_dir, f"val_{model_name}.bin"))
+        ids = np.array(ids, dtype=np.uint16)
+        ids.tofile(os.path.join(data_dir, f"{model_name}.bin"))
+
+        log += f"{model_name.upper()}: length of dataset in tokens {n}\n"
+
+    with open(os.path.join(data_dir, "readme"), "w") as f:
+        f.write(log)
